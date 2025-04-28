@@ -17,7 +17,9 @@
         public string UserLogin { get; set; } = string.Empty;
        
         public string Text { get; set; } = string.Empty;
-       
+        public string UserAvatar { get; set; } = "/images/default-avatar.png";
+
+
         public DateTime CreatedAt { get; set; }
     }
 }

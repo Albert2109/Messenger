@@ -109,7 +109,7 @@ namespace Messanger.Controllers
                 return View(model);
             }
 
-            // Успішна авторизація — пишемо в сесію
+            
             HttpContext.Session.SetString("UserId", user.UserId.ToString());
             HttpContext.Session.SetString("Login", user.Login);
             HttpContext.Session.SetString("Email", user.Email);

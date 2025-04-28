@@ -1,105 +1,245 @@
 ﻿@model Messanger.Models.ViewModels.HomePageViewModel
-@using Microsoft.AspNetCore.Http
+@using System.Text.Encodings.Web
+@using System.Text.RegularExpressions
 
+@{
+    ViewData["Title"] = "Месенджер";
+    int? currentChatId = Model.SelectedChatId;
+}
 <!DOCTYPE html>
 <html lang="uk">
 <head>
     <meta charset="utf-8" />
-    <title>Месенджер</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-          rel="stylesheet" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"]</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
     <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+        }
+
         .profile {
-            width: 250px;
+            width: 260px;
             background: #f8f9fa;
             padding: 1rem;
         }
 
         .chat-list {
-            width: 300px;
-            border-right: 1px solid #ddd;
             overflow-y: auto;
+            height: calc(100% - 160px);
+            margin-bottom: 1rem;
         }
 
         .chat-container {
             flex: 1;
             display: flex;
             flex-direction: column;
+            height: 100%;
         }
 
         .messages {
             flex: 1;
             overflow-y: auto;
             padding: 1rem;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: .25rem;
         }
 
         .input-area {
-            padding: 0.5rem;
+            padding: .5rem;
             border-top: 1px solid #ddd;
+            display: flex;
+            gap: .5rem;
+            align-items: center;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        #searchResults {
+            max-height: 150px;
+            overflow-y: auto;
         }
     </style>
 </head>
-<body class="d-flex vh-100">
-
-    <!-- Ліва панель: профіль та чати -->
+<body class="d-flex" style="height:100%">
     <div class="d-flex flex-column profile">
         <div class="text-center mb-4">
             @if (!string.IsNullOrEmpty(Model.CurrentUserAva))
             {
-                <img src="@Model.CurrentUserAva" class="rounded-circle mb-2"
-                     style="width:80px;height:80px;object-fit:cover;" />
+                <img src="@Model.CurrentUserAva" class="avatar mb-2" />
             }
             <h5>@Model.CurrentUserLogin</h5>
             <small class="text-muted">@Model.CurrentUserEmail</small>
         </div>
-
         <h6>Чати</h6>
-        <ul class="list-group flex-grow-1">
+        <ul class="list-group chat-list">
             @foreach (var c in Model.Chats)
             {
-                var isActive = c.UserId == Model.SelectedChatId ? "active" : "";
-                <li class="list-group-item @isActive p-2">
-                    <a asp-action="Index" asp-route-chatId="@c.UserId"
-                       class="d-flex justify-content-between text-decoration-none text-dark">
+                var active = c.UserId == currentChatId ? "active" : "";
+                <li class="list-group-item @active p-2">
+                    <a asp-action="Index" asp-route-chatId="@c.UserId" class="d-flex justify-content-between text-decoration-none text-dark">
                         <span>@c.Login</span>
                         <small class="text-muted">@c.LastAt.ToLocalTime():HH:mm</small>
                     </a>
-                    <div class="small text-truncate">@c.LastMessage</div>
                 </li>
             }
         </ul>
+        <input id="userSearch" class="form-control mb-2" placeholder="Пошук за логіном або email" />
+        <ul id="searchResults" class="list-group mb-3"></ul>
     </div>
 
-    <!-- Права панель: повідомлення і форма -->
-    <div class="d-flex flex-column chat-container">
-        @if (!Model.SelectedChatId.HasValue)
+    <div class="d-flex flex-column flex-grow-1 chat-container p-3 bg-light">
+        @if (!currentChatId.HasValue)
         {
-            <div class="d-flex flex-grow-1 justify-content-center align-items-center text-muted">
-                Оберіть чат
+            <div class="d-flex flex-grow-1 justify-content-center align-items-center">
+                <span class="text-muted">Оберіть чат ліворуч або використайте пошук</span>
             </div>
         }
         else
         {
-            <div class="messages">
+            <div class="mb-3">
+                @{
+                    var partner = Model.Chats.FirstOrDefault(c => c.UserId == currentChatId)?.Login;
+                }
+                <h5>Чат з @partner</h5>
+            </div>
+            <div id="messages" class="messages mb-3">
                 @foreach (var m in Model.Messages)
                 {
-                    <div class="mb-3">
-                        <strong>@m.UserLogin:</strong>
-                        <span class="ms-2">@m.Text</span>
-                        <div><small class="text-muted">@m.CreatedAt.ToLocalTime():HH:mm</small></div>
+                    var encoded = HtmlEncoder.Default.Encode(m.Text);
+                    var linked = Regex.Replace(encoded,
+                    @"(https?://[^\s]+)",
+                    @"<a href=""$1"" target=""_blank"">$1</a>");
+                    <div class="mb-2 d-flex align-items-start">
+                        <img src="@m.UserAvatar" class="avatar me-2" />
+                        <div>
+                            <strong>@m.UserLogin:</strong><br />
+                            @Html.Raw(linked.Replace("\n", "<br/>"))
+                            <div><small class="text-muted">@m.CreatedAt.ToLocalTime():HH:mm</small></div>
+                        </div>
                     </div>
                 }
             </div>
-            <form asp-action="Index" method="post"
-                  asp-route-chatId="@Model.SelectedChatId" class="input-area">
-                <div class="input-group">
-                    <input name="text" class="form-control" placeholder="Написати..." autocomplete="off" />
-                    <button class="btn btn-primary" type="submit">▶️</button>
-                </div>
-            </form>
+            <div class="input-area">
+                <input type="file" id="fileInput" class="form-control" />
+                <button id="sendFileBtn" class="btn btn-secondary">📎</button>
+                <form asp-action="Index" method="post" asp-route-chatId="@currentChatId" class="flex-grow-1 d-flex ms-2">
+                    <input name="text" class="form-control me-2" placeholder="Написати..." autocomplete="off" />
+                    <button class="btn btn-primary">▶️</button>
+                </form>
+            </div>
         }
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@7.0.0/dist/browser/signalr.min.js"></script>
+    <script>
+        var currentChatId = @(currentChatId.HasValue ? currentChatId.Value.ToString() : "null");
+        var connection = new signalR.HubConnectionBuilder()
+            .withUrl('/chatHub?userId=' + '@Model.CurrentUserId')
+            .withAutomaticReconnect()
+            .build();
+
+        function makeLinks(text) {
+            return text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+        }
+
+        connection.on('ReceiveMessage', function(name, email, avatar, text) {
+            appendMessage(name, avatar, text, false);
+        });
+        connection.on('ReceivePrivateMessage', function(name, email, avatar, text) {
+            appendMessage(name + ' (private)', avatar, text, true);
+        });
+        connection.on('ReceivePrivateFile', function(name, email, avatar, url, file) {
+            appendFile(name, avatar, url, file, false);
+        });
+
+        function appendMessage(name, avatar, text, highlight) {
+            var md = document.getElementById('messages');
+            var d = document.createElement('div');
+            d.className = 'mb-2 d-flex align-items-start' + (highlight ? ' bg-warning bg-opacity-10 rounded p-1' : '');
+            d.innerHTML = '<img src="' + avatar + '" class="avatar me-2" />' +
+                '<div><strong>' + name + ':</strong><br/>' + makeLinks(text) +
+                '<br/><small class="text-muted">' + new Date().toLocaleTimeString() + '</small></div>';
+            md.appendChild(d);
+            md.scrollTop = md.scrollHeight;
+        }
+
+               function appendFile(name, avatar, url, file, highlight) {
+            const container = document.getElementById('messages');
+            const wrapper = document.createElement('div');
+            wrapper.className = 'mb-2 d-flex align-items-start' + (highlight ? ' bg-warning bg-opacity-10 rounded p-1' : '');
+
+            wrapper.innerHTML = `
+                <img src="${avatar}" class="avatar me-2" />
+                <div class="flex-grow-1">
+                    <strong>${name}:</strong><br />
+                    <div class="card mt-1">
+                        <div class="card-body p-2 d-flex align-items-center">
+                            <span class="fs-3 me-2">📎</span>
+                            <span class="me-auto text-truncate" style="max-width: 200px; display: inline-block;">${file}</span>
+                            <a href="${url}" download="${file}" class="btn btn-sm btn-outline-primary ms-2">Завантажити</a>
+                        </div>
+                    </div>
+                    <small class="text-muted d-block mt-1">${new Date().toLocaleTimeString()}</small>
+                </div>`;
+
+            container.appendChild(wrapper);
+            container.scrollTop = container.scrollHeight;
+        }
+
+
+               document.getElementById('sendFileBtn').addEventListener('click', async e => {
+            e.preventDefault();
+            if (currentChatId === null) return;
+
+            const input = document.getElementById('fileInput');
+            if (!input.files.length) return;
+
+            const file = input.files[0];
+            const form = new FormData();
+            form.append('file', file);
+
+            const res = await fetch(`/MessangerHome/UploadFile?chatId=${currentChatId}`, {
+                method: 'POST',
+                body: form
+            });
+
+            if (res.ok) {
+                const { downloadUrl, fileName } = await res.json();
+                
+                appendFile("@Model.CurrentUserLogin", "@Model.CurrentUserAva", downloadUrl, fileName);
+            } else {
+                console.error('Upload failed', await res.text());
+            }
+
+            input.value = '';
+        });
+
+
+        document.getElementById('userSearch').addEventListener('input', function(e) {
+            var q = e.target.value.trim();
+            var list = document.getElementById('searchResults'); list.innerHTML = '';
+            if (q.length < 2) return;
+            fetch(`/Chat/SearchUsers?query=${encodeURIComponent(q)}`)
+                .then(r => r.json())
+                .then(users => users.forEach(u => {
+                    var li = document.createElement('li');
+                    li.className = 'list-group-item list-group-item-action';
+                    li.textContent = u.userName + ' (' + u.email + ')';
+                    li.onclick = function() { window.location = '?chatId=' + u.id; };
+                    list.appendChild(li);
+                }));
+        });
+
+        connection.start().catch(err => console.error(err));
+    </script>
 </body>
 </html>
+
