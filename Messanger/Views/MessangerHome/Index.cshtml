@@ -1,0 +1,105 @@
+﻿@model Messanger.Models.ViewModels.HomePageViewModel
+@using Microsoft.AspNetCore.Http
+
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="utf-8" />
+    <title>Месенджер</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+          rel="stylesheet" />
+    <style>
+        .profile {
+            width: 250px;
+            background: #f8f9fa;
+            padding: 1rem;
+        }
+
+        .chat-list {
+            width: 300px;
+            border-right: 1px solid #ddd;
+            overflow-y: auto;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .input-area {
+            padding: 0.5rem;
+            border-top: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body class="d-flex vh-100">
+
+    <!-- Ліва панель: профіль та чати -->
+    <div class="d-flex flex-column profile">
+        <div class="text-center mb-4">
+            @if (!string.IsNullOrEmpty(Model.CurrentUserAva))
+            {
+                <img src="@Model.CurrentUserAva" class="rounded-circle mb-2"
+                     style="width:80px;height:80px;object-fit:cover;" />
+            }
+            <h5>@Model.CurrentUserLogin</h5>
+            <small class="text-muted">@Model.CurrentUserEmail</small>
+        </div>
+
+        <h6>Чати</h6>
+        <ul class="list-group flex-grow-1">
+            @foreach (var c in Model.Chats)
+            {
+                var isActive = c.UserId == Model.SelectedChatId ? "active" : "";
+                <li class="list-group-item @isActive p-2">
+                    <a asp-action="Index" asp-route-chatId="@c.UserId"
+                       class="d-flex justify-content-between text-decoration-none text-dark">
+                        <span>@c.Login</span>
+                        <small class="text-muted">@c.LastAt.ToLocalTime():HH:mm</small>
+                    </a>
+                    <div class="small text-truncate">@c.LastMessage</div>
+                </li>
+            }
+        </ul>
+    </div>
+
+    <!-- Права панель: повідомлення і форма -->
+    <div class="d-flex flex-column chat-container">
+        @if (!Model.SelectedChatId.HasValue)
+        {
+            <div class="d-flex flex-grow-1 justify-content-center align-items-center text-muted">
+                Оберіть чат
+            </div>
+        }
+        else
+        {
+            <div class="messages">
+                @foreach (var m in Model.Messages)
+                {
+                    <div class="mb-3">
+                        <strong>@m.UserLogin:</strong>
+                        <span class="ms-2">@m.Text</span>
+                        <div><small class="text-muted">@m.CreatedAt.ToLocalTime():HH:mm</small></div>
+                    </div>
+                }
+            </div>
+            <form asp-action="Index" method="post"
+                  asp-route-chatId="@Model.SelectedChatId" class="input-area">
+                <div class="input-group">
+                    <input name="text" class="form-control" placeholder="Написати..." autocomplete="off" />
+                    <button class="btn btn-primary" type="submit">▶️</button>
+                </div>
+            </form>
+        }
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+# ASP.NET Core
+bin/
+obj/
+
+# User-specific files
+.vs/
+.idea/
+.vscode/
+
+# User-specific IDE settings
+.vsconfig
+
+# Windows Installer files
+Thumbs.db
+Desktop.ini
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# Node.js
+node_modules/
+
+# npm package log
+npm-debug.log
+
+# .NET Core SDK
+project.lock.json
+project.fragment.lock.json
+
+# .NET Core Tooling
+global.json
+
+# Azure Functions
+local.settings.json
+
+# Tye (container orchestration tool)
+.tye/
+
+# ASP.NET Identity files
+App_Data/
+
+# Entity Framework Core migrations
+Migrations/
+
+# JetBrains Rider
+.idea/
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
