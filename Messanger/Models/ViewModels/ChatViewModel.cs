@@ -1,4 +1,6 @@
-﻿namespace Messanger.Models.ViewModels
+﻿using System.ComponentModel.DataAnnotations.Schema;
+
+namespace Messanger.Models.ViewModels
 {
     public class ChatViewModel
     {
@@ -13,13 +15,22 @@
     }
     public class ChatMessageViewModel
     {
-       
-        public string UserLogin { get; set; } = string.Empty;
-       
-        public string Text { get; set; } = string.Empty;
-        public string UserAvatar { get; set; } = "/images/default-avatar.png";
-
-
+        public int Id { get; set; }
+        public string UserLogin { get; set; } = "";
+        public string UserAvatar { get; set; } = "";
+        public string? Text { get; set; }
+        public string? FileUrl { get; set; }
+        public string? FileName { get; set; }
         public DateTime CreatedAt { get; set; }
+
+
+        [NotMapped]
+        public bool HasText => !string.IsNullOrEmpty(Text);
+
+        [NotMapped]
+        public bool HasFile => !string.IsNullOrEmpty(FileUrl);
+
+        [NotMapped]
+        public bool IsOwn { get; set; }
     }
 }

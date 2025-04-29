@@ -19,24 +19,26 @@ namespace Messanger.Hubs
 
         public override async Task OnConnectedAsync()
         {
-            if (int.TryParse(Context.GetHttpContext()?.Request.Query["userId"], out var userId))
+            var http = Context.GetHttpContext();
+            if (http.Request.Query.TryGetValue("userId", out var vals)
+                && int.TryParse(vals.First(), out var userId))
             {
-                var list = _connections.GetOrAdd(userId, _ => new List<string>());
-                lock (list) list.Add(Context.ConnectionId);
+                await Groups.AddToGroupAsync(Context.ConnectionId, userId.ToString());
             }
             await base.OnConnectedAsync();
         }
 
         public override async Task OnDisconnectedAsync(Exception? e)
         {
-            foreach (var kvp in _connections)
+            var http = Context.GetHttpContext();
+            if (http.Request.Query.TryGetValue("userId", out var vals)
+                && int.TryParse(vals.First(), out var userId))
             {
-                var list = kvp.Value;
-                lock (list) list.Remove(Context.ConnectionId);
-                if (!list.Any()) _connections.TryRemove(kvp.Key, out _);
+                await Groups.RemoveFromGroupAsync(Context.ConnectionId, userId.ToString());
             }
             await base.OnDisconnectedAsync(e);
         }
+
 
         public async Task SendPrivateMessage(int toUserId, string text)
         {
