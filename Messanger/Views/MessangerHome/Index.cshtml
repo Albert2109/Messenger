@@ -61,33 +61,61 @@
             <div id="messages" class="messages mb-3">
                 @foreach (var m in Model.Messages)
                 {
-                    var isOwnMessage = m.UserLogin == Model.CurrentUserLogin;
-                    var encoded = HtmlEncoder.Default.Encode(m.Text);
-                    var linked = Regex.Replace(encoded, @"(https?://[^\s]+)", @"<a href=""$1"" target=""_blank"">$1</a>");
+                    <div class="message-wrapper @(m.IsOwn ? "justify-content-end" : "justify-content-start")"
+                         data-message-id="@m.Id"
+                         data-has-text="@(m.HasText.ToString().ToLower())">
 
-                    <div class="message-wrapper @(isOwnMessage ? "justify-content-end" : "justify-content-start")">
-                        @if (!isOwnMessage)
-                        {
-                            <img src="@m.UserAvatar" class="avatar" />
-                        }
-                        <div class="message @(isOwnMessage ? "message-right" : "message-left")">
-                            @Html.Raw(linked.Replace("\n", "<br/>"))
+                        <div class="message @(m.IsOwn ? "message-right" : "message-left")">
+                            @* ТЕКСТ *@
+                            @if (m.HasText)
+                            {
+                                var encoded = HtmlEncoder.Default.Encode(m.Text!);
+                                var linked = Regex.Replace(encoded,
+                                @"(https?://[^\s]+)",
+                                @"<a href=""$1"" target=""_blank"">$1</a>");
+                                @Html.Raw(linked.Replace("\n", "<br/>"))
+                            }
+                            @* ФАЙЛ *@
+                            else if (m.HasFile)
+                            {
+                                <div class="card mt-1">
+                                    <div class="card-body p-2 d-flex align-items-center">
+                                        <span class="fs-3 me-2">📎</span>
+                                        <span class="me-auto text-truncate" style="max-width:200px;">
+                                            @m.FileName
+                                        </span>
+                                        <a href="@m.FileUrl" download="@m.FileName"
+                                           class="btn btn-sm btn-outline-primary ms-2">
+                                            Завантажити
+                                        </a>
+                                    </div>
+                                </div>
+                            }
+
                             <div class="message-time">@m.CreatedAt.ToLocalTime():HH:mm</div>
                         </div>
-                        @if (isOwnMessage)
+
+                        @if (m.IsOwn)
                         {
                             <img src="@Model.CurrentUserAva" class="avatar" />
                         }
                     </div>
                 }
+
             </div>
 
             <div class="input-area">
                 <input type="file" id="fileInput" class="form-control" />
                 <button id="sendFileBtn" class="btn btn-secondary">📎</button>
-                <form asp-action="Index" method="post" asp-route-chatId="@currentChatId" class="flex-grow-1 d-flex ms-2">
-                    <input name="text" class="form-control me-2" placeholder="Написати..." autocomplete="off" />
-                    <button class="btn btn-primary">▶️</button>
+
+                <form id="messageForm"
+                      asp-action="Index" asp-route-chatId="@currentChatId"
+                      method="post"
+                      class="flex-grow-1 d-flex ms-2">
+                    <input type="hidden" id="editMessageId" name="editMessageId" value="" />
+                    <input name="text" id="messageInput" class="form-control me-2"
+                           placeholder="Написати..." autocomplete="off" />
+                    <button id="sendMessageBtn" class="btn btn-primary">▶️</button>
                 </form>
             </div>
         }
@@ -102,7 +130,16 @@
             currentChatId: @(currentChatId.HasValue ? currentChatId.Value.ToString() : "null")
         };
     </script>
+    <script>
+        window.apiRoutes = {
+          deleteMessage: '@Url.Action("DeleteMessage", "MessangerHome")',
+          editMessage:   '@Url.Action("EditMessage", "MessangerHome")'
+        };
+    </script>
+
+
     <script src="~/js/chat.js"></script>
+    <script src="~/js/MessengerContextMenu.js"></script>
 
 </body>
 </html>
