@@ -129,7 +129,7 @@ namespace Messanger.Controllers
                 "MessangerHome",
                 new { file = unique, name = file.FileName })!;
 
-            // Зберігаємо повідомлення з посиланням у БД
+         
             var userId = int.Parse(HttpContext.Session.GetString("UserId")!);
             var msg = new Message
             {
@@ -143,7 +143,7 @@ namespace Messanger.Controllers
             _db.Messages.Add(msg);
             await _db.SaveChangesAsync();
 
-            // Шлемо по SignalR лише тих, хто в групі
+            
             var senderName = HttpContext.Session.GetString("Login")!;
             var senderEmail = HttpContext.Session.GetString("Email")!;
             var senderAvatar = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
@@ -161,23 +161,44 @@ namespace Messanger.Controllers
         public async Task<IActionResult> DeleteMessage(int id)
         {
             var msg = await _db.Messages.FindAsync(id);
-            if (msg == null) return NotFound();
+            if (msg == null)
+                return NotFound();
+
+            
+            var userIdStr = HttpContext.Session.GetString("UserId");
+            if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var currentUserId))
+                return Unauthorized();   
+
+            
+            if (msg.UserId != currentUserId)
+                return Unauthorized();  
+
             _db.Messages.Remove(msg);
             await _db.SaveChangesAsync();
             return Ok();
         }
 
-        // ===> Змінити текст повідомлення
+
         [HttpPost]
         public async Task<IActionResult> EditMessage(int id, string newText)
         {
             var msg = await _db.Messages.FindAsync(id);
-            if (msg == null) return NotFound();
+            if (msg == null)
+                return NotFound();
+
+            var userIdStr = HttpContext.Session.GetString("UserId");
+            if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var currentUserId))
+                return Unauthorized();
+
+            if (msg.UserId != currentUserId)
+                return Unauthorized();
+
             msg.Text = newText;
             _db.Messages.Update(msg);
             await _db.SaveChangesAsync();
             return Ok();
         }
+
 
     }
 }

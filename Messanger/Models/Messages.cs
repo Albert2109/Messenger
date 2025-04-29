@@ -10,9 +10,9 @@ namespace Messanger.Models
         public int UserId { get; set; }
         public int RecipientId { get; set; }
 
-        public string? Text { get; set; }         // можна надсилати тільки файл
-        public string? FileUrl { get; set; }      // посилання на файл
-        public string? FileName { get; set; }     // оригинальне ім'я
+        public string? Text { get; set; }         
+        public string? FileUrl { get; set; }      
+        public string? FileName { get; set; }    
 
         public DateTime CreatedAt { get; set; }
 

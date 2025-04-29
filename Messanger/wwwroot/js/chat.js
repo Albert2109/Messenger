@@ -40,28 +40,44 @@ function appendMessage(name, avatar, text, highlight) {
     md.scrollTop = md.scrollHeight;
 }
 
-function appendFile(name, avatar, url, file, highlight) {
-    const container = document.getElementById('messages');
-    const wrapper = document.createElement('div');
-    wrapper.className = 'mb-2 d-flex align-items-start' + (highlight ? ' bg-warning bg-opacity-10 rounded p-1' : '');
-
-    wrapper.innerHTML = `
-        <img src="${avatar}" class="avatar me-2" />
-        <div class="flex-grow-1">
-            <strong>${name}:</strong><br />
-            <div class="card mt-1">
-                <div class="card-body p-2 d-flex align-items-center">
-                    <span class="fs-3 me-2">📎</span>
-                    <span class="me-auto text-truncate" style="max-width: 200px; display: inline-block;">${file}</span>
-                    <a href="${url}" download="${file}" class="btn btn-sm btn-outline-primary ms-2">Завантажити</a>
-                </div>
-            </div>
-            <small class="text-muted d-block mt-1">${new Date().toLocaleTimeString()}</small>
+ function appendFile(name, avatar, url, fileName, highlight) {
+         const container = document.getElementById('messages');
+         const wrapper = document.createElement('div');
+         wrapper.className = 'mb-2 d-flex align-items-start' + (highlight ? ' bg-warning bg-opacity-10 rounded p-1' : '');
+    
+        
+             wrapper.innerHTML = `
+       <img src="${avatar}" class="avatar me-2" />
+       <div class="flex-grow-1">
+            <strong>${name}:</strong>
         </div>`;
-
-    container.appendChild(wrapper);
-    container.scrollTop = container.scrollHeight;
-}
+    
+             const content = wrapper.querySelector('.flex-grow-1');
+    
+           
+             const mediaContainer = document.createElement('div');
+        mediaContainer.className = 'mt-1';
+        window.preview(url, mediaContainer);
+         content.appendChild(mediaContainer);
+    
+             
+             const dl = document.createElement('a');
+         dl.href = url;
+         dl.download = fileName;
+        dl.textContent = 'Завантажити';
+         dl.className = 'btn btn-sm btn-outline-primary mt-2';
+         content.appendChild(dl);
+    
+            
+            const time = document.createElement('small');
+      time.className = 'text-muted d-block mt-1';
+       time.textContent = new Date().toLocaleTimeString();
+       content.appendChild(time);
+    
+         
+            container.appendChild(wrapper);
+       container.scrollTop = container.scrollHeight;
+    }
 
 document.getElementById('sendFileBtn').addEventListener('click', async e => {
     e.preventDefault();
