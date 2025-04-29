@@ -58,25 +58,29 @@ namespace Messanger.Controllers
                 LastAt = x.CreatedAt
             }).ToList();
 
-            
+
             if (chatId.HasValue)
             {
                 vm.Messages = await _db.Messages
-                    .Where(m => (m.UserId == userId && m.RecipientId == chatId) ||
-                                (m.UserId == chatId && m.RecipientId == userId))
-                    .Include(m => m.User)
-                    .OrderBy(m => m.CreatedAt)
-                    .Select(m => new ChatMessageViewModel
-                    {
-                        UserLogin = m.User.Login,
-                        UserAvatar = m.User.ava ?? "/images/default-avatar.png",
-                        Text = m.Text,
-                        CreatedAt = m.CreatedAt
-                    })
-                    .ToListAsync();
+          .Where(m => (m.UserId == userId && m.RecipientId == chatId) ||
+                      (m.UserId == chatId && m.RecipientId == userId))
+          .Include(m => m.User)
+          .OrderBy(m => m.CreatedAt)
+          .Select(m => new ChatMessageViewModel
+          {
+              Id = m.Id,
+              UserLogin = m.User.Login,
+              UserAvatar = m.User.ava ?? "/images/default-avatar.png",
+              Text = m.Text,
+              FileUrl = m.FileUrl,
+              FileName = m.FileName,
+              CreatedAt = m.CreatedAt,
+              IsOwn = m.UserId == userId
+          })
+  .ToListAsync();
             }
 
-            return View(vm);
+                return View(vm);
         }
 
         [HttpPost]
@@ -104,42 +108,76 @@ namespace Messanger.Controllers
             return PhysicalFile(path, "application/octet-stream", name);
         }
 
-         [HttpPost]
+        [HttpPost]
         public async Task<IActionResult> UploadFile(
-            int chatId,
-            IFormFile file,
-            [FromServices] IHubContext<ChatHub> hubContext)
+    int chatId,
+    IFormFile file,
+    [FromServices] IHubContext<ChatHub> hubContext)
         {
             if (file == null || file.Length == 0)
-                return BadRequest("No file uploaded.");
+                return BadRequest();
 
-           
-            var unique  = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+            var unique = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
             var uploads = Path.Combine(_env.WebRootPath, "uploads");
             Directory.CreateDirectory(uploads);
-            var path    = Path.Combine(uploads, unique);
-            await using (var fs = new FileStream(path, FileMode.Create))
-                await file.CopyToAsync(fs);
+            var path = Path.Combine(uploads, unique);
+            await using var fs = new FileStream(path, FileMode.Create);
+            await file.CopyToAsync(fs);
 
-            
             var downloadUrl = Url.Action(
                 "Download",
                 "MessangerHome",
                 new { file = unique, name = file.FileName })!;
 
-           
-            var senderName   = HttpContext.Session.GetString("Login") ?? string.Empty;
-            var senderEmail  = HttpContext.Session.GetString("Email") ?? string.Empty;
+            // Зберігаємо повідомлення з посиланням у БД
+            var userId = int.Parse(HttpContext.Session.GetString("UserId")!);
+            var msg = new Message
+            {
+                UserId = userId,
+                RecipientId = chatId,
+                Text = null,
+                FileUrl = downloadUrl,
+                FileName = file.FileName,
+                CreatedAt = DateTime.UtcNow
+            };
+            _db.Messages.Add(msg);
+            await _db.SaveChangesAsync();
+
+            // Шлемо по SignalR лише тих, хто в групі
+            var senderName = HttpContext.Session.GetString("Login")!;
+            var senderEmail = HttpContext.Session.GetString("Email")!;
             var senderAvatar = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
 
-           
             await hubContext
                 .Clients
                 .Group(chatId.ToString())
-                .SendAsync("ReceivePrivateFile", senderName, senderEmail, senderAvatar, downloadUrl, file.FileName);
+                .SendAsync("ReceivePrivateFile",
+                     senderName, senderEmail, senderAvatar,
+                     downloadUrl, file.FileName);
 
-            
             return Ok(new { downloadUrl, fileName = file.FileName });
         }
+        [HttpPost]
+        public async Task<IActionResult> DeleteMessage(int id)
+        {
+            var msg = await _db.Messages.FindAsync(id);
+            if (msg == null) return NotFound();
+            _db.Messages.Remove(msg);
+            await _db.SaveChangesAsync();
+            return Ok();
+        }
+
+        // ===> Змінити текст повідомлення
+        [HttpPost]
+        public async Task<IActionResult> EditMessage(int id, string newText)
+        {
+            var msg = await _db.Messages.FindAsync(id);
+            if (msg == null) return NotFound();
+            msg.Text = newText;
+            _db.Messages.Update(msg);
+            await _db.SaveChangesAsync();
+            return Ok();
+        }
+
     }
 }

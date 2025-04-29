@@ -13,106 +13,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>@ViewData["Title"]</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <style>
-        body, html {
-            height: 100%;
-            margin: 0;
-            background: #e5e5e5;
-        }
-
-        .profile {
-            width: 280px;
-            background: #ffffff;
-            padding: 1rem;
-            border-right: 1px solid #ddd;
-        }
-
-        .chat-list {
-            overflow-y: auto;
-            height: calc(100% - 220px);
-            margin-bottom: 1rem;
-        }
-
-        .chat-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-        }
-
-        .messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 1rem;
-            background: #dbe9f4;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .message {
-            max-width: 70%;
-            padding: 0.6rem 1rem;
-            border-radius: 1rem;
-            word-break: break-word;
-            position: relative;
-            display: inline-block;
-            font-size: 0.95rem;
-            line-height: 1.3;
-        }
-
-        .message-left {
-            align-self: flex-start;
-            background: #ffffff;
-        }
-
-        .message-right {
-            align-self: flex-end;
-            background: #9fd3c7;
-            color: #000;
-        }
-
-        .input-area {
-            padding: .7rem;
-            border-top: 1px solid #ccc;
-            background: #ffffff;
-            display: flex;
-            gap: .5rem;
-            align-items: center;
-        }
-
-        .avatar {
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            object-fit: cover;
-        }
-
-        .message-wrapper {
-            display: flex;
-            align-items: flex-end;
-            gap: 0.5rem;
-        }
-
-        .message-time {
-            font-size: 0.75rem;
-            color: #999;
-            margin-top: 2px;
-            text-align: right;
-        }
-
-        .chat-header {
-            padding: .5rem 1rem;
-            background: #ffffff;
-            border-bottom: 1px solid #ddd;
-            font-weight: bold;
-        }
-
-        #searchResults {
-            max-height: 150px;
-            overflow-y: auto;
-        }
-    </style>
+    <link rel="stylesheet" href = "~/css/MessangerHomeStyle.css" />
 
 </head>
 <body class="d-flex" style="height:100%">
@@ -160,33 +61,61 @@
             <div id="messages" class="messages mb-3">
                 @foreach (var m in Model.Messages)
                 {
-                    var isOwnMessage = m.UserLogin == Model.CurrentUserLogin;
-                    var encoded = HtmlEncoder.Default.Encode(m.Text);
-                    var linked = Regex.Replace(encoded, @"(https?://[^\s]+)", @"<a href=""$1"" target=""_blank"">$1</a>");
+                    <div class="message-wrapper @(m.IsOwn ? "justify-content-end" : "justify-content-start")"
+                         data-message-id="@m.Id"
+                         data-has-text="@(m.HasText.ToString().ToLower())">
 
-                    <div class="message-wrapper @(isOwnMessage ? "justify-content-end" : "justify-content-start")">
-                        @if (!isOwnMessage)
-                        {
-                            <img src="@m.UserAvatar" class="avatar" />
-                        }
-                        <div class="message @(isOwnMessage ? "message-right" : "message-left")">
-                            @Html.Raw(linked.Replace("\n", "<br/>"))
+                        <div class="message @(m.IsOwn ? "message-right" : "message-left")">
+                            @* ТЕКСТ *@
+                            @if (m.HasText)
+                            {
+                                var encoded = HtmlEncoder.Default.Encode(m.Text!);
+                                var linked = Regex.Replace(encoded,
+                                @"(https?://[^\s]+)",
+                                @"<a href=""$1"" target=""_blank"">$1</a>");
+                                @Html.Raw(linked.Replace("\n", "<br/>"))
+                            }
+                            @* ФАЙЛ *@
+                            else if (m.HasFile)
+                            {
+                                <div class="card mt-1">
+                                    <div class="card-body p-2 d-flex align-items-center">
+                                        <span class="fs-3 me-2">📎</span>
+                                        <span class="me-auto text-truncate" style="max-width:200px;">
+                                            @m.FileName
+                                        </span>
+                                        <a href="@m.FileUrl" download="@m.FileName"
+                                           class="btn btn-sm btn-outline-primary ms-2">
+                                            Завантажити
+                                        </a>
+                                    </div>
+                                </div>
+                            }
+
                             <div class="message-time">@m.CreatedAt.ToLocalTime():HH:mm</div>
                         </div>
-                        @if (isOwnMessage)
+
+                        @if (m.IsOwn)
                         {
                             <img src="@Model.CurrentUserAva" class="avatar" />
                         }
                     </div>
                 }
+
             </div>
 
             <div class="input-area">
                 <input type="file" id="fileInput" class="form-control" />
                 <button id="sendFileBtn" class="btn btn-secondary">📎</button>
-                <form asp-action="Index" method="post" asp-route-chatId="@currentChatId" class="flex-grow-1 d-flex ms-2">
-                    <input name="text" class="form-control me-2" placeholder="Написати..." autocomplete="off" />
-                    <button class="btn btn-primary">▶️</button>
+
+                <form id="messageForm"
+                      asp-action="Index" asp-route-chatId="@currentChatId"
+                      method="post"
+                      class="flex-grow-1 d-flex ms-2">
+                    <input type="hidden" id="editMessageId" name="editMessageId" value="" />
+                    <input name="text" id="messageInput" class="form-control me-2"
+                           placeholder="Написати..." autocomplete="off" />
+                    <button id="sendMessageBtn" class="btn btn-primary">▶️</button>
                 </form>
             </div>
         }
@@ -194,106 +123,24 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@7.0.0/dist/browser/signalr.min.js"></script>
     <script>
-        var currentChatId = @(currentChatId.HasValue ? currentChatId.Value.ToString() : "null");
-        var connection = new signalR.HubConnectionBuilder()
-            .withUrl('/chatHub?userId=' + '@Model.CurrentUserId')
-            .withAutomaticReconnect()
-            .build();
-
-        function makeLinks(text) {
-            return text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
-        }
-
-        connection.on('ReceiveMessage', function(name, email, avatar, text) {
-            appendMessage(name, avatar, text, false);
-        });
-        connection.on('ReceivePrivateMessage', function(name, email, avatar, text) {
-            appendMessage(name + ' (private)', avatar, text, true);
-        });
-        connection.on('ReceivePrivateFile', function(name, email, avatar, url, file) {
-            appendFile(name, avatar, url, file, false);
-        });
-
-        function appendMessage(name, avatar, text, highlight) {
-            var md = document.getElementById('messages');
-            var d = document.createElement('div');
-            d.className = 'mb-2 d-flex align-items-start' + (highlight ? ' bg-warning bg-opacity-10 rounded p-1' : '');
-            d.innerHTML = '<img src="' + avatar + '" class="avatar me-2" />' +
-                '<div><strong>' + name + ':</strong><br/>' + makeLinks(text) +
-                '<br/><small class="text-muted">' + new Date().toLocaleTimeString() + '</small></div>';
-            md.appendChild(d);
-            md.scrollTop = md.scrollHeight;
-        }
-
-       function appendFile(name, avatar, url, file, highlight) {
-    const container = document.getElementById('messages');
-    const wrapper = document.createElement('div');
-    wrapper.className = 'mb-2 d-flex align-items-start' + (highlight ? ' bg-warning bg-opacity-10 rounded p-1' : '');
-
-    wrapper.innerHTML = `
-        <img src="${avatar}" class="avatar me-2" />
-        <div class="flex-grow-1">
-            <strong>${name}:</strong><br />
-            <div class="card mt-1">
-                <div class="card-body p-2 d-flex align-items-center">
-                    <span class="fs-3 me-2">📎</span>
-                    <span class="me-auto text-truncate" style="max-width: 200px; display: inline-block;">${file}</span>
-                    <a href="${url}" download="${file}" class="btn btn-sm btn-outline-primary ms-2">Завантажити</a>
-                </div>
-            </div>
-            <small class="text-muted d-block mt-1">${new Date().toLocaleTimeString()}</small>
-        </div>`;
-
-    container.appendChild(wrapper);
-    container.scrollTop = container.scrollHeight;
-}
-
-
-               document.getElementById('sendFileBtn').addEventListener('click', async e => {
-            e.preventDefault();
-            if (currentChatId === null) return;
-
-            const input = document.getElementById('fileInput');
-            if (!input.files.length) return;
-
-            const file = input.files[0];
-            const form = new FormData();
-            form.append('file', file);
-
-            const res = await fetch(`/MessangerHome/UploadFile?chatId=${currentChatId}`, {
-                method: 'POST',
-                body: form
-            });
-
-            if (res.ok) {
-                const { downloadUrl, fileName } = await res.json();
-                
-                appendFile("@Model.CurrentUserLogin", "@Model.CurrentUserAva", downloadUrl, fileName);
-            } else {
-                console.error('Upload failed', await res.text());
-            }
-
-            input.value = '';
-        });
-
-
-        document.getElementById('userSearch').addEventListener('input', function(e) {
-            var q = e.target.value.trim();
-            var list = document.getElementById('searchResults'); list.innerHTML = '';
-            if (q.length < 2) return;
-            fetch(`/Chat/SearchUsers?query=${encodeURIComponent(q)}`)
-                .then(r => r.json())
-                .then(users => users.forEach(u => {
-                    var li = document.createElement('li');
-                    li.className = 'list-group-item list-group-item-action';
-                    li.textContent = u.userName + ' (' + u.email + ')';
-                    li.onclick = function() { window.location = '?chatId=' + u.id; };
-                    list.appendChild(li);
-                }));
-        });
-
-        connection.start().catch(err => console.error(err));
+        window.chatConfig = {
+            currentUserId: '@Model.CurrentUserId',
+            currentUserLogin: '@Model.CurrentUserLogin',
+            currentUserAva: '@Model.CurrentUserAva',
+            currentChatId: @(currentChatId.HasValue ? currentChatId.Value.ToString() : "null")
+        };
     </script>
+    <script>
+        window.apiRoutes = {
+          deleteMessage: '@Url.Action("DeleteMessage", "MessangerHome")',
+          editMessage:   '@Url.Action("EditMessage", "MessangerHome")'
+        };
+    </script>
+
+
+    <script src="~/js/chat.js"></script>
+    <script src="~/js/MessengerContextMenu.js"></script>
+
 </body>
 </html>
 
