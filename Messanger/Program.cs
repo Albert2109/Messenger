@@ -17,11 +17,9 @@ builder.Services.AddSession(options =>
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
 });
-builder.Services.AddSignalR();
-builder.Services.AddSignalR(options =>
-{
-    options.EnableDetailedErrors = true;
-});
+builder.Services
+    .AddSignalR(options => options.EnableDetailedErrors = true);
+
 
 
 var app = builder.Build();
@@ -34,6 +32,7 @@ app.UseRouting();
 
 app.UseSession();
 
+app.UseAuthentication();   
 app.UseAuthorization();
 
 

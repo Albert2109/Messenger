@@ -1,12 +1,15 @@
-﻿using Microsoft.AspNetCore.SignalR;
+﻿// ChatHub.cs
+using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 using System.Security.Claims;
 using Messanger.Models;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace Messanger.Hubs
 {
@@ -14,75 +17,70 @@ namespace Messanger.Hubs
     {
         private static readonly ConcurrentDictionary<int, List<string>> _connections = new();
         private readonly IWebHostEnvironment _env;
+        private readonly ILogger<ChatHub> _logger;
 
-        public ChatHub(IWebHostEnvironment env) => _env = env;
+        public ChatHub(IWebHostEnvironment env, ILogger<ChatHub> logger)
+        {
+            _env = env;
+            _logger = logger;
+        }
 
         public override async Task OnConnectedAsync()
         {
             var http = Context.GetHttpContext();
-            if (http.Request.Query.TryGetValue("userId", out var vals)
-                && int.TryParse(vals.First(), out var userId))
+            _logger.LogInformation("OnConnectedAsync: ConnectionId={cid}, Query={query}", Context.ConnectionId, http.Request.QueryString);
+
+            if (http.Request.Query.TryGetValue("userId", out var userIdVal) &&
+                int.TryParse(userIdVal.First(), out var userId))
             {
+                
+                _connections.AddOrUpdate(
+                    userId,
+                    _ => new List<string> { Context.ConnectionId },
+                    (_, list) => { lock (list) list.Add(Context.ConnectionId); return list; }
+                );
+
+                
                 await Groups.AddToGroupAsync(Context.ConnectionId, userId.ToString());
+                _logger.LogInformation("Added ConnectionId={cid} to group {group}", Context.ConnectionId, userId);
             }
+
             await base.OnConnectedAsync();
         }
 
-        public override async Task OnDisconnectedAsync(Exception? e)
+        public override async Task OnDisconnectedAsync(Exception? exception)
         {
             var http = Context.GetHttpContext();
-            if (http.Request.Query.TryGetValue("userId", out var vals)
-                && int.TryParse(vals.First(), out var userId))
+            if (http.Request.Query.TryGetValue("userId", out var userIdVal) &&
+                int.TryParse(userIdVal.First(), out var userId))
             {
+                
+                if (_connections.TryGetValue(userId, out var list))
+                {
+                    lock (list) list.Remove(Context.ConnectionId);
+                    if (!list.Any())
+                        _connections.TryRemove(userId, out _);
+                }
+
+                
                 await Groups.RemoveFromGroupAsync(Context.ConnectionId, userId.ToString());
+                _logger.LogInformation("Removed ConnectionId={cid} from group {group}", Context.ConnectionId, userId);
             }
-            await base.OnDisconnectedAsync(e);
+
+            await base.OnDisconnectedAsync(exception);
         }
 
-
-        public async Task SendPrivateMessage(int toUserId, string text)
+     
+        public Task JoinGroup(string groupName)
         {
-            var senderName = Context.User?.Identity?.Name ?? "Anonymous";
-            var senderEmail = Context.User?.FindFirst(ClaimTypes.Email)?.Value ?? "";
-            var senderAvatar = Context.User?.FindFirst("avatarUrl")?.Value ?? "/images/default-avatar.png";
-
-            if (_connections.TryGetValue(toUserId, out var conns))
-            {
-                foreach (var conn in conns)
-                    await Clients.Client(conn)
-                        .SendAsync("ReceivePrivateMessage", senderName, senderEmail, senderAvatar, text);
-            }
+            _logger.LogInformation("JoinGroup: ConnectionId={cid}, Group={group}", Context.ConnectionId, groupName);
+            return Groups.AddToGroupAsync(Context.ConnectionId, groupName);
         }
 
-        public async Task SendPrivateFile(int toUserId, byte[] fileData, string fileName)
+        public Task LeaveGroup(string groupName)
         {
-            var unique = $"{Guid.NewGuid()}{Path.GetExtension(fileName)}";
-            var uploads = Path.Combine(_env.WebRootPath, "uploads");
-            Directory.CreateDirectory(uploads);
-            var path = Path.Combine(uploads, unique);
-            await File.WriteAllBytesAsync(path, fileData);
-            var url = $"/MessangerHome/Download?file={unique}&name={Uri.EscapeDataString(fileName)}";
-
-            var senderName = Context.User?.Identity?.Name ?? "Anonymous";
-            var senderEmail = Context.User?.FindFirst(ClaimTypes.Email)?.Value ?? "";
-            var senderAvatar = Context.User?.FindFirst("avatarUrl")?.Value ?? "/images/default-avatar.png";
-
-            var tasks = new List<Task>();
-
-            
-            if (_connections.TryGetValue(toUserId, out var conns))
-            {
-                foreach (var conn in conns)
-                    tasks.Add(Clients.Client(conn)
-                        .SendAsync("ReceivePrivateFile", senderName, senderEmail, senderAvatar, url, fileName));
-            }
-           
-            tasks.Add(Clients.Caller
-                .SendAsync("ReceivePrivateFile", senderName, senderEmail, senderAvatar, url, fileName));
-
-            await Task.WhenAll(tasks);
+            _logger.LogInformation("LeaveGroup: ConnectionId={cid}, Group={group}", Context.ConnectionId, groupName);
+            return Groups.RemoveFromGroupAsync(Context.ConnectionId, groupName);
         }
-
-
     }
 }
