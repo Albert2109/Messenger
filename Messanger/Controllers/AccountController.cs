@@ -1,8 +1,10 @@
-﻿using Messanger.Model;
+﻿using Messanger.Hubs;
+using Messanger.Model;
 using Messanger.Models;
 using Messanger.Models.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Cryptography;
@@ -14,10 +16,12 @@ namespace Messanger.Controllers
     {
         private readonly MessengerContext _messengerContext;
         private readonly ILogger<AccountController> _logger;
-        public AccountController(MessengerContext messengerContext, ILogger<AccountController> logger)
+        private readonly IHubContext<ProfileHub> _profileHub;
+        public AccountController(MessengerContext messengerContext, ILogger<AccountController> logger, IHubContext<ProfileHub> profileHub)
         {
             _messengerContext = messengerContext;
             _logger = logger;
+            _profileHub = profileHub;
         }
 
         [HttpGet]
@@ -119,7 +123,58 @@ namespace Messanger.Controllers
             return RedirectToAction("Index", "MessangerHome");
         }
 
+        [HttpGet]
+        public async Task<IActionResult> GetProfile(int id)
+        {
+            var user = await _messengerContext.users.FindAsync(id);
+            if (user == null) return NotFound();
+            return Json(new
+            {
+                user.UserId,
+                user.Login,
+                user.Email,
+                Ava = user.ava ?? "/images/default-avatar.png"
+            });
+        }
+        [HttpPost]
+        public async Task<IActionResult> UpdateProfile(ProfileViewModel model)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
+            var user = await _messengerContext.users.FindAsync(model.UserId);
+            if (user == null) return NotFound();
+
+           
+            if (model.AvaFile != null)
+            {
+                var uploads = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/uploads");
+                Directory.CreateDirectory(uploads);
+                var fn = $"{Guid.NewGuid()}{Path.GetExtension(model.AvaFile.FileName)}";
+                using var fs = new FileStream(Path.Combine(uploads, fn), FileMode.Create);
+                await model.AvaFile.CopyToAsync(fs);
+                user.ava = "/uploads/" + fn;
+            }
+
+            user.Login = model.Login;
+            user.Email = model.Email;
+            await _messengerContext.SaveChangesAsync();
+
+         
+            HttpContext.Session.SetString("Login", user.Login);
+            HttpContext.Session.SetString("Email", user.Email);
+            HttpContext.Session.SetString("Ava", user.ava ?? "");
+
+          
+            await _profileHub.Clients.All.SendAsync(
+                "ProfileUpdated",
+                user.UserId,
+                user.Login,
+                user.Email,
+                user.ava);
+
+            return Ok();
+        }
 
 
 

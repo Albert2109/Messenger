@@ -4,6 +4,7 @@ using Messanger.Models;
 using Messanger.Models.ViewModels;
 using Messanger.Hubs;
 using Microsoft.AspNetCore.SignalR;
+using System.Linq;
 
 namespace Messanger.Controllers
 {
@@ -69,22 +70,23 @@ namespace Messanger.Controllers
             if (chatId.HasValue)
             {
                 vm.Messages = await _db.Messages
-                    .Where(m => (m.UserId == userId && m.RecipientId == chatId) ||
-                                (m.UserId == chatId && m.RecipientId == userId))
-                    .Include(m => m.User)
-                    .OrderBy(m => m.CreatedAt)
-                    .Select(m => new ChatMessageViewModel
-                    {
-                        Id = m.Id,
-                        UserLogin = m.User.Login,
-                        UserAvatar = m.User.ava ?? "/images/default-avatar.png",
-                        Text = m.Text,
-                        FileUrl = m.FileUrl,
-                        FileName = m.FileName,
-                        CreatedAt = m.CreatedAt,
-                        IsOwn = m.UserId == userId
-                    })
-                    .ToListAsync();
+            .Where(m => (m.UserId == userId && m.RecipientId == chatId) ||
+                        (m.UserId == chatId && m.RecipientId == userId))
+            .Include(m => m.User)
+            .OrderBy(m => m.CreatedAt)
+            .Select(m => new ChatMessageViewModel
+            {
+                Id = m.Id,
+                UserId = m.UserId,                                
+                UserLogin = m.User.Login,
+                UserAvatar = m.User.ava ?? "/images/default-avatar.png",
+                Text = m.Text,
+                FileUrl = m.FileUrl,
+                FileName = m.FileName,
+                CreatedAt = m.CreatedAt,
+                IsOwn = m.UserId == userId
+            })
+            .ToListAsync();
             }
 
             return View(vm);
@@ -177,10 +179,20 @@ namespace Messanger.Controllers
 
             if (msg.UserId != currentUserId) return Unauthorized();
 
+          
+            var otherId = msg.UserId == currentUserId ? msg.RecipientId : msg.UserId;
+
             _db.Messages.Remove(msg);
             await _db.SaveChangesAsync();
+
+           
+            await _hubContext.Clients
+                .Groups(new[] { currentUserId.ToString(), otherId.ToString() })
+                .SendAsync("MessageDeleted", id);
+
             return Ok();
         }
+
 
         [HttpPost]
         public async Task<IActionResult> EditMessage(int id, string newText)
@@ -194,11 +206,21 @@ namespace Messanger.Controllers
 
             if (msg.UserId != currentUserId) return Unauthorized();
 
+           
+            var otherId = msg.UserId == currentUserId ? msg.RecipientId : msg.UserId;
+
             msg.Text = newText;
             _db.Messages.Update(msg);
             await _db.SaveChangesAsync();
+
+           
+            await _hubContext.Clients
+                .Groups(new[] { currentUserId.ToString(), otherId.ToString() })
+                .SendAsync("MessageEdited", id, newText);
+
             return Ok();
         }
+
 
         [HttpGet]
         public IActionResult Download(string file, string name)

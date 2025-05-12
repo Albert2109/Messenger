@@ -12,10 +12,12 @@ namespace Messanger.Models.ViewModels
         public string LastMessage { get; set; } = string.Empty;
        
         public DateTime LastAt { get; set; }
+        public string AvaUrl { get; set; } = "/images/default-avatar.png";
     }
     public class ChatMessageViewModel
     {
         public int Id { get; set; }
+        public int UserId { get; set; }
         public string UserLogin { get; set; } = "";
         public string UserAvatar { get; set; } = "";
         public string? Text { get; set; }
