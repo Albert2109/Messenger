@@ -51,6 +51,32 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('ReceivePrivateFile event:', fileName, url, timestamp);
         appendFile(login, avatar, url, fileName, true, timestamp);
     });
+   
+    connection.on('MessageDeleted', messageId => {
+        console.log('MessageDeleted:', messageId);
+        
+        const wrapper = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (wrapper) {
+            
+            wrapper.remove();
+            
+        }
+    });
+
+    
+    connection.on('MessageEdited', (messageId, newText) => {
+        console.log('MessageEdited:', messageId, newText);
+        const wrapper = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (!wrapper) return;
+       
+        const msgDiv = wrapper.querySelector('.message');
+        if (msgDiv) {
+            
+            const linked = newText.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
+            msgDiv.innerHTML = linked + `<div class="message-time">${wrapper.querySelector('.message-time').textContent}</div>`;
+        }
+    });
+
     function makeLinks(text) {
         return text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
     }

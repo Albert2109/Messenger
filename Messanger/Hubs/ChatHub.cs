@@ -1,4 +1,4 @@
-﻿// ChatHub.cs
+﻿
 using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 using System.Security.Claims;
