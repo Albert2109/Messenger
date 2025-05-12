@@ -1,21 +1,18 @@
 ﻿@model Messanger.Models.ViewModels.HomePageViewModel
 @{
-    ViewData["Title"] = "Месенджер";
+    ViewData["Title"] = "Груповий чат";
 }
 
 <link rel="stylesheet" href="~/css/MessangerHomeStyle.css" />
 
 <div class="d-flex" style="height:100%">
-    @* ▸ лівий сайдбар (аватар, чати, групи) *@
     @await Html.PartialAsync("_Sidebar", Model)
 
-    @* ▸ основна область (приватний або груповий чат) *@
     <div class="flex-grow-1 p-3 bg-light d-flex flex-column chat-container">
         @await Html.PartialAsync("_ChatWindow", Model)
     </div>
 </div>
 
-@* ▸ модалки підтягуємо один раз, унизу *@
 @await Html.PartialAsync("_NewGroupModal")
 @await Html.PartialAsync("_ProfileModal")
 
