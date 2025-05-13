@@ -1,5 +1,6 @@
 ﻿using Messanger.Hubs;
 using Messanger.Models;
+using Messanger.Models.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -25,7 +26,7 @@ public class GroupController : Controller
     // ─────────── CREATE ───────────
     [HttpPost("Create")]
     public async Task<IActionResult> Create(string name, IFormFile? avatar,
-                                            [FromForm] int[] memberIds)
+                                        [FromForm] int[] memberIds)
     {
         var ownerId = int.Parse(HttpContext.Session.GetString("UserId")!);
         var avatarUrl = avatar is null ? null : await SaveFile(avatar);
@@ -34,7 +35,9 @@ public class GroupController : Controller
         _db.Groups.Add(g);
         await _db.SaveChangesAsync();
 
-        var ids = memberIds.Append(ownerId).Distinct();
+        
+        var ids = memberIds.Append(ownerId).Distinct().ToArray();
+
         foreach (var uid in ids)
             _db.GroupMembers.Add(new GroupMember
             {
@@ -44,8 +47,17 @@ public class GroupController : Controller
             });
         await _db.SaveChangesAsync();
 
+        //---------------------------------------
+    
+        await _hub.Groups.AddToGroupAsync(ownerId.ToString(), $"group-{g.GroupId}");
+
+        
+       
         await _hub.Clients.Groups(ids.Select(i => i.ToString()))
                  .SendAsync("GroupCreated", g.GroupId, g.Name, g.AvatarUrl);
+
+        await _hub.Clients.Group($"group-{g.GroupId}")
+                 .SendAsync("GroupMemberAdded", g.GroupId, ownerId);
 
         return Ok(new { g.GroupId });
     }
@@ -201,6 +213,90 @@ public class GroupController : Controller
         await _hub.Clients.Group($"group-{groupId}")
                  .SendAsync("GroupDeleted", groupId);
         return Ok();
+    }
+    [HttpGet("Chat/{groupId:int}")]
+    public async Task<IActionResult> Chat(int groupId)
+    {
+        if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var userId))
+            return RedirectToAction("Avtorization", "Account");
+
+        var vm = new HomePageViewModel
+        {
+            CurrentUserId = userId,
+            CurrentUserLogin = HttpContext.Session.GetString("Login") ?? "",
+            CurrentUserEmail = HttpContext.Session.GetString("Email") ?? "",
+            CurrentUserAva = HttpContext.Session.GetString("Ava"),
+            SelectedGroupId = groupId
+        };
+
+        
+        var allMessages = await _db.Messages
+            .Where(m => m.GroupId == null && (m.UserId == userId || m.RecipientId == userId))
+            .Select(m => new {
+                OtherId = m.UserId == userId ? m.RecipientId : m.UserId,
+                OtherLogin = m.UserId == userId ? m.Recipient.Login : m.User.Login,
+                m.Text,
+                m.CreatedAt
+            })
+            .ToListAsync();  
+
+       
+        vm.Chats = allMessages
+            .GroupBy(x => x.OtherId)
+            .Select(g => g.OrderByDescending(x => x.CreatedAt).First())
+            .OrderByDescending(x => x.CreatedAt)
+            .Select(x => new ChatViewModel
+            {
+                UserId = (int)x.OtherId,
+                Login = x.OtherLogin,
+                LastMessage = x.Text,
+                LastAt = x.CreatedAt
+            })
+            .ToList();
+
+        
+        vm.Groups = await _db.GroupMembers
+            .Where(gm => gm.UserId == userId && !gm.IsRemoved && !gm.Group.IsDeleted)
+            .Select(gm => new {
+                gm.GroupId,
+                gm.Group.Name,
+                Avatar = gm.Group.AvatarUrl ?? "/images/default-group.png",
+                LastAt = _db.Messages
+                            .Where(ms => ms.GroupId == gm.GroupId)
+                            .OrderByDescending(ms => ms.CreatedAt)
+                            .Select(ms => (DateTime?)ms.CreatedAt)
+                            .FirstOrDefault() ?? gm.Group.CreatedAt
+            })
+            .OrderByDescending(x => x.LastAt)
+            .Select(x => new GroupViewModel
+            {
+                GroupId = x.GroupId,
+                Name = x.Name,
+                Avatar = x.Avatar,
+                LastAt = x.LastAt
+            })
+            .ToListAsync();
+
+       
+        vm.Messages = await _db.Messages
+            .Where(m => m.GroupId == groupId)
+            .Include(m => m.User)
+            .OrderBy(m => m.CreatedAt)
+            .Select(m => new ChatMessageViewModel
+            {
+                Id = m.Id,
+                UserId = m.UserId,
+                UserLogin = m.User.Login,
+                UserAvatar = m.User.ava ?? "/images/default-avatar.png",
+                Text = m.Text,
+                FileUrl = m.FileUrl,
+                FileName = m.FileName,
+                CreatedAt = m.CreatedAt,
+                IsOwn = m.UserId == userId
+            })
+            .ToListAsync();
+
+        return View("Chat", vm);
     }
 
     // ─────────── util ───────────

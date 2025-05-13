@@ -1,0 +1,59 @@
+﻿@model Messanger.Models.ViewModels.HomePageViewModel
+@using System.Text.RegularExpressions
+
+<div class="d-flex flex-column profile">
+    <div class="text-center mb-4">
+        @if (!string.IsNullOrEmpty(Model.CurrentUserAva))
+        {
+            <img src="@Model.CurrentUserAva"
+                 class="avatar clickable-avatar mb-2"
+                 data-user-id="@Model.CurrentUserId" />
+        }
+        <h5>@Model.CurrentUserLogin</h5>
+        <small class="text-muted">@Model.CurrentUserEmail</small>
+    </div>
+
+    <!-- One‑to‑one Chats -->
+    <h6 class="d-flex justify-content-between align-items-center">
+        Чати
+        <button class="btn btn-sm btn-outline-primary" id="btnNewGroup">+ Група</button>
+    </h6>
+    <ul class="list-group chat-list mb-3">
+        @foreach (var c in Model.Chats)
+        {
+            var active = (!Model.SelectedGroupId.HasValue && c.UserId == Model.SelectedChatId) ? "active" : "";
+            <li class="list-group-item @active p-2 d-flex align-items-center" data-user-id="@c.UserId">
+                <img src="@c.AvaUrl" class="avatar clickable-avatar me-2" data-user-id="@c.UserId" />
+
+                <a asp-action="Index"
+                   asp-route-chatId="@c.UserId"
+                   class="flex-grow-1 d-flex justify-content-between text-decoration-none text-dark">
+                    <span>@c.Login</span>
+                    <small class="text-muted">@c.LastAt.ToLocalTime():HH:mm</small>
+                </a>
+            </li>
+        }
+    </ul>
+
+    <!-- Group Chats -->
+    <h6>Групи</h6>
+    <ul class="list-group group-list">
+        @foreach (var g in Model.Groups)
+        {
+            var gActive = (Model.SelectedGroupId == g.GroupId) ? "active" : "";
+            <li class="list-group-item @gActive p-2 d-flex align-items-center" data-group-id="@g.GroupId">
+                <img src="@g.Avatar" class="avatar me-2" />
+                <a asp-controller="Group"
+                   asp-action="Chat"
+                   asp-route-id="@g.GroupId"
+                   class="flex-grow-1 d-flex justify-content-between text-decoration-none text-dark">
+                    <span>@g.Name</span>
+                    <small class="text-muted">@g.LastAt.ToLocalTime():HH:mm</small>
+                </a>
+            </li>
+        }
+    </ul>
+
+    <input id="userSearch" class="form-control mt-3 mb-2" placeholder="Пошук за логіном або email" />
+    <ul id="searchResults" class="list-group mb-3"></ul>
+</div>

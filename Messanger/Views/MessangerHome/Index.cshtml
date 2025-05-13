@@ -20,7 +20,8 @@
 @await Html.PartialAsync("_ProfileModal")
 
 @section Scripts {
-    <script src="~/lib/signalr/signalr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@7.0.5/dist/browser/signalr.min.js"></script>
+
 
     <script>
         window.chatConfig = {
@@ -28,7 +29,11 @@
             currentUserLogin: '@Model.CurrentUserLogin',
             currentUserAva:  '@Model.CurrentUserAva',
             currentChatId:   @(Model.SelectedChatId is null ? "null" : Model.SelectedChatId.ToString()),
-            currentGroupId:  @(Model.SelectedGroupId is null ? "null" : Model.SelectedGroupId.ToString())
+            currentGroupId:  @(Model.SelectedGroupId is null ? "null" : Model.SelectedGroupId.ToString()),
+            apiRoutes: {
+                deleteMessage: '@Url.Action("DeleteMessage", "MessangerHome")',
+                editMessage:   '@Url.Action("EditMessage", "MessangerHome")'
+            }
         };
     </script>
 
@@ -36,4 +41,16 @@
     <script src="~/js/chat.js"></script>
     <script src="~/js/profile.js"></script>
     <script src="~/js/group.js"></script>
+    <script src="~/js/MessengerContextMenu.js"></script>
+    <script>
+        (function() {
+            const input = document.getElementById('fileInput');
+            const container = document.getElementById('previewContainer');
+            if (!input || !container) return;
+            input.addEventListener('change', e => {
+                const file = e.target.files[0];
+                if (file) window.preview(file, container);
+            });
+        })();
+    </script>
 }

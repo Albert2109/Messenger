@@ -3,52 +3,60 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Messanger.Models
 {
-    public class MessengerContext:DbContext
+    public class MessengerContext : DbContext
     {
         public MessengerContext(DbContextOptions<MessengerContext> options)
-           : base(options)
-        {
-        }
-        public DbSet<Users> users { get; set; }
-        public DbSet<Message> Messages { get; set; }
+            : base(options) { }
 
-        public DbSet<Group> Groups { get; set; } = null!;       
+        public DbSet<Users> Users { get; set; } = null!;
+        public DbSet<Message> Messages { get; set; } = null!;
+        public DbSet<Group> Groups { get; set; } = null!;
         public DbSet<GroupMember> GroupMembers { get; set; } = null!;
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(ModelBuilder b)
         {
-            base.OnModelCreating(modelBuilder);
+            base.OnModelCreating(b);
 
-           
-            modelBuilder.Entity<Message>()
-                .HasOne(m => m.User)
-                .WithMany(u => u.SentMessages)
-                .HasForeignKey(m => m.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
+            /* -------- Message -> User (from) -------- */
+            b.Entity<Message>()
+             .HasOne(m => m.User)
+             .WithMany(u => u.SentMessages)
+             .HasForeignKey(m => m.UserId)
+             .OnDelete(DeleteBehavior.Restrict);
 
-            
-            modelBuilder.Entity<Message>()
-                .HasOne(m => m.Recipient)
-                .WithMany(u => u.ReceivedMessages)
-                .HasForeignKey(m => m.RecipientId)
-                .OnDelete(DeleteBehavior.Restrict);
-            modelBuilder.Entity<Group>()
-    .HasOne(g => g.Owner)
-    .WithMany()                       // одноразовий зв’язок
-    .HasForeignKey(g => g.OwnerId)
-    .OnDelete(DeleteBehavior.Restrict); 
+            /* -------- Message -> User (to / private) -------- */
+            b.Entity<Message>()
+             .HasOne(m => m.Recipient)
+             .WithMany(u => u.ReceivedMessages)
+             .HasForeignKey(m => m.RecipientId)
+             .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<GroupMember>()
-                .HasKey(gm => new { gm.GroupId, gm.UserId });
+            /* -------- Message -> Group (group chat) -------- */
+            b.Entity<Message>()
+             .HasOne(m => m.Group)
+             .WithMany()                              // нам не потрібна колекція Messages у Group
+             .HasForeignKey(m => m.GroupId)
+             .OnDelete(DeleteBehavior.Cascade);
 
-            modelBuilder.Entity<GroupMember>()
-                .HasOne(gm => gm.Group)
-                .WithMany(g => g.Members)
-                .HasForeignKey(gm => gm.GroupId);
+            /* -------- Group -> Owner -------- */
+            b.Entity<Group>()
+             .HasOne(g => g.Owner)
+             .WithMany()
+             .HasForeignKey(g => g.OwnerId)
+             .OnDelete(DeleteBehavior.Restrict);
 
-            modelBuilder.Entity<GroupMember>()
-                .HasOne(gm => gm.User)
-                .WithMany()                       // не тримаємо колекцію в Users
-                .HasForeignKey(gm => gm.UserId);
+            /* -------- GroupMember composite PK -------- */
+            b.Entity<GroupMember>()
+             .HasKey(gm => new { gm.GroupId, gm.UserId });
+
+            b.Entity<GroupMember>()
+             .HasOne(gm => gm.Group)
+             .WithMany(g => g.Members)
+             .HasForeignKey(gm => gm.GroupId);
+
+            b.Entity<GroupMember>()
+             .HasOne(gm => gm.User)
+             .WithMany()                              // не тримаємо колекцію в Users
+             .HasForeignKey(gm => gm.UserId);
         }
     }
 }

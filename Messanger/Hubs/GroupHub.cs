@@ -9,15 +9,15 @@ namespace Messanger.Hubs
         public GroupHub(IWebHostEnvironment env,
                        ILogger<GroupHub> logger,
                        MessengerContext db)
-           : base(env, logger)             // виклик конструктора ChatHub
+           : base(env, logger)             
         {
             _db = db;
         }
         public override async Task OnConnectedAsync()
         {
-            await base.OnConnectedAsync();  // реєстрація користувача‑1‑до‑1
+            await base.OnConnectedAsync();  
 
-            // Додаємо всі групи, в яких юзер є учасником
+           
             var http = Context.GetHttpContext()!;
             if (http.Request.Query.TryGetValue("userId", out var val) &&
                 int.TryParse(val.First(), out var userId))
@@ -33,7 +33,7 @@ namespace Messanger.Hubs
 
         public override async Task OnDisconnectedAsync(System.Exception? ex)
         {
-            // нічого додаткового; базовий метод прибере користувача
+            
             await base.OnDisconnectedAsync(ex);
         }
     }

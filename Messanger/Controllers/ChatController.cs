@@ -15,7 +15,7 @@ namespace Messanger.Controllers
             if (string.IsNullOrWhiteSpace(query))
                 return Json(Array.Empty<object>());
 
-            var users = _context.users
+            var users = _context.Users
                 .Where(u => u.Login.Contains(query) || u.Email.Contains(query))
                 .Select(u => new {
                     id = u.UserId,

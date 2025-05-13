@@ -1,0 +1,16 @@
+﻿@model Messanger.Models.ViewModels.HomePageViewModel
+
+<div class="input-area d-flex align-items-center mt-auto">
+    <input type="file" id="fileInput" class="form-control me-2" />
+    <button id="sendFileBtn" class="btn btn-secondary me-2">📎</button>
+    <div id="previewContainer" class="me-2"></div>
+
+    <div class="flex-grow-1 d-flex">
+        <input id="messageInput" class="form-control me-2"
+               placeholder="Написати…" autocomplete="off" />
+        <button id="sendMessageBtn" type="button"
+                class="btn btn-primary">
+            ▶️
+        </button>
+    </div>
+</div>

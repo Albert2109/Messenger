@@ -1,0 +1,36 @@
+﻿@* Профіль користувача (Edit / View) *@
+<div class="modal fade" id="profileModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form id="profileForm" class="modal-content" enctype="multipart/form-data">
+            <div class="modal-header">
+                <h5 class="modal-title">Профіль користувача</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <input type="hidden" name="UserId" id="profileUserId" />
+
+                <div class="text-center mb-3">
+                    <img id="profileAvaPreview" src=""
+                         class="avatar mb-2" style="width:100px;height:100px" />
+                    <input type="file" name="AvaFile" class="form-control mt-2" />
+                </div>
+
+                <div class="mb-3">
+                    <label>Логін</label>
+                    <input type="text" name="Login" id="profileLogin" class="form-control" required />
+                </div>
+
+                <div class="mb-3">
+                    <label>Email</label>
+                    <input type="email" name="Email" id="profileEmail" class="form-control" required />
+                </div>
+            </div>
+
+            <div class="modal-footer justify-content-between">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрити</button>
+                <button type="submit" class="btn btn-primary">Зберегти</button>
+            </div>
+        </form>
+    </div>
+</div>
