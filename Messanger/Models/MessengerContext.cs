@@ -16,35 +16,35 @@ namespace Messanger.Models
         {
             base.OnModelCreating(b);
 
-            /* -------- Message -> User (from) -------- */
+           
             b.Entity<Message>()
              .HasOne(m => m.User)
              .WithMany(u => u.SentMessages)
              .HasForeignKey(m => m.UserId)
              .OnDelete(DeleteBehavior.Restrict);
 
-            /* -------- Message -> User (to / private) -------- */
+            
             b.Entity<Message>()
              .HasOne(m => m.Recipient)
              .WithMany(u => u.ReceivedMessages)
              .HasForeignKey(m => m.RecipientId)
              .OnDelete(DeleteBehavior.Restrict);
 
-            /* -------- Message -> Group (group chat) -------- */
+            
             b.Entity<Message>()
              .HasOne(m => m.Group)
-             .WithMany()                              // нам не потрібна колекція Messages у Group
+             .WithMany()                              
              .HasForeignKey(m => m.GroupId)
              .OnDelete(DeleteBehavior.Cascade);
 
-            /* -------- Group -> Owner -------- */
+           
             b.Entity<Group>()
              .HasOne(g => g.Owner)
              .WithMany()
              .HasForeignKey(g => g.OwnerId)
              .OnDelete(DeleteBehavior.Restrict);
 
-            /* -------- GroupMember composite PK -------- */
+            
             b.Entity<GroupMember>()
              .HasKey(gm => new { gm.GroupId, gm.UserId });
 
@@ -55,7 +55,7 @@ namespace Messanger.Models
 
             b.Entity<GroupMember>()
              .HasOne(gm => gm.User)
-             .WithMany()                              // не тримаємо колекцію в Users
+             .WithMany()                              
              .HasForeignKey(gm => gm.UserId);
         }
     }

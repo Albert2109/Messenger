@@ -136,7 +136,7 @@ if (typeof window.chatConfig === 'undefined') {
             msgDiv.innerHTML = makeLinks(newText) + `<div class="message-time">${time}</div>`;
         });
 
-        // ===== UI actions =====
+      
         document.getElementById('sendMessageBtn').addEventListener('click', async e => {
             e.preventDefault();
             const input = document.getElementById('messageInput');

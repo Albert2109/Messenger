@@ -30,5 +30,6 @@ namespace Messanger.Models.ViewModels
         public string Name { get; set; } = string.Empty;
         public string? Avatar { get; set; }
         public DateTime LastAt { get; set; }
+        public string Role { get; set; }
     }
 }

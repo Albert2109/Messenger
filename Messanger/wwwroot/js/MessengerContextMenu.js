@@ -1,14 +1,19 @@
-﻿/* contextMenu.js v1.8.0 */
+﻿
 (function () {
     document.addEventListener('DOMContentLoaded', () => {
-        const currentUserId = String(window.chatConfig?.currentUserId || '');
+        const cfg = window.chatConfig || {};
+        const currentUserId = String(cfg.currentUserId || '');
+        const currentGroupId = cfg.currentGroupId;
         if (!currentUserId) return;
-        console.log('Loaded contextMenu.js v1.8.0');
 
-        const deleteUrl = '/MessangerHome/DeleteMessage';
-        const editUrl = '/MessangerHome/EditMessage';
+        const isGroup = currentGroupId != null;
+        const deleteUrlBase = isGroup
+            ? '/Group/DeleteMessage'
+            : '/MessangerHome/DeleteMessage';
+        const editUrlBase = isGroup
+            ? '/Group/EditMessage'
+            : '/MessangerHome/EditMessage';
 
-        // Створюємо контекстне меню
         const menu = document.createElement('div');
         menu.id = 'context-menu';
         Object.assign(menu.style, {
@@ -17,10 +22,10 @@
             boxShadow: '0 2px 6px rgba(0,0,0,0.15)', padding: '0'
         });
         menu.innerHTML = `
-          <ul style="list-style:none;margin:0;padding:0;">
-            <li id="cm-edit"   style="padding:8px;cursor:pointer;">✏️ Редагувати</li>
-            <li id="cm-delete" style="padding:8px;cursor:pointer;">🗑️ Видалити</li>
-          </ul>`;
+      <ul style="list-style:none;margin:0;padding:0;">
+        <li id="cm-edit"   style="padding:8px;cursor:pointer;">✏️ Редагувати</li>
+        <li id="cm-delete" style="padding:8px;cursor:pointer;">🗑️ Видалити</li>
+      </ul>`;
         document.body.append(menu);
 
         let targetWrapper = null;
@@ -29,8 +34,10 @@
             menu.style.top = `${y}px`;
             menu.style.left = `${x}px`;
             menu.style.display = 'block';
-            menu.querySelector('#cm-edit').style.display = canEdit ? 'block' : 'none';
-            menu.querySelector('#cm-delete').style.display = 'block';
+            const editLi = menu.querySelector('#cm-edit');
+            const deleteLi = menu.querySelector('#cm-delete');
+            if (editLi) editLi.style.display = canEdit ? 'block' : 'none';
+            if (deleteLi) deleteLi.style.display = 'block';
         }
 
         function hideMenu() {
@@ -38,7 +45,6 @@
             targetWrapper = null;
         }
 
-        // Обробка правого кліку на повідомленні
         document.body.addEventListener('contextmenu', e => {
             const wrapper = e.target.closest('.message-wrapper');
             if (!wrapper) return;
@@ -46,40 +52,37 @@
             targetWrapper = wrapper;
 
             const msgUserId = wrapper.querySelector('img.avatar')?.dataset.userId;
-            const canEdit = msgUserId === currentUserId;
-            showMenu(e.pageX, e.pageY, canEdit);
+            showMenu(e.pageX, e.pageY, msgUserId === currentUserId);
         });
 
-        // Ховаємо меню при кліку поза ним або натисанні Esc
-        document.addEventListener('click', e => {
-            if (!menu.contains(e.target)) hideMenu();
-        });
-        document.addEventListener('keydown', e => {
-            if (e.key === 'Escape') hideMenu();
-        });
+        document.addEventListener('click', e => { if (!menu.contains(e.target)) hideMenu(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') hideMenu(); });
 
-        // Видалення повідомлення
-        menu.querySelector('#cm-delete').addEventListener('click', async () => {
-            if (!targetWrapper) return;
-            const wrapper = targetWrapper;
-            const id = wrapper.dataset.messageId;
+       
+        menu.querySelector('#cm-delete')?.addEventListener('click', async () => {
+            if (!targetWrapper) return hideMenu();
+            const id = targetWrapper.dataset.messageId;
             hideMenu();
             try {
-                const res = await fetch(`${deleteUrl}?id=${encodeURIComponent(id)}`, { method: 'POST' });
+                let url = isGroup
+                    ? `${deleteUrlBase}/${encodeURIComponent(id)}`
+                    : `${deleteUrlBase}?id=${encodeURIComponent(id)}`;
+                const res = await fetch(url, { method: 'POST' });
                 if (!res.ok) throw new Error(await res.text());
-                wrapper.remove();
+                targetWrapper.remove();
             } catch (err) {
                 console.error('Delete error:', err);
             }
         });
 
-        // Редагування повідомлення
-        menu.querySelector('#cm-edit').addEventListener('click', () => {
-            if (!targetWrapper) return;
+        
+        menu.querySelector('#cm-edit')?.addEventListener('click', () => {
+            if (!targetWrapper) return hideMenu();
             const wrapper = targetWrapper;
             hideMenu();
 
             const msgDiv = wrapper.querySelector('.message');
+            if (!msgDiv) return;  
             const timeEl = msgDiv.querySelector('.message-time');
             const timeTxt = timeEl?.textContent || '';
             if (timeEl) timeEl.remove();
@@ -95,28 +98,25 @@
             input.focus();
             input.setSelectionRange(original.length, original.length);
 
-            // Зберегти редагування
+            function cancelEdit() {
+                msgDiv.textContent = original;
+                msgDiv.insertAdjacentHTML('beforeend', `<div class="message-time">${timeTxt}</div>`);
+            }
+
             async function saveEdit() {
                 const newText = input.value.trim();
                 const id = wrapper.dataset.messageId;
                 try {
-                    const res = await fetch(
-                        `${editUrl}?id=${encodeURIComponent(id)}&newText=${encodeURIComponent(newText)}`,
-                        { method: 'POST' }
-                    );
+                    let url = isGroup
+                        ? `${editUrlBase}/${encodeURIComponent(id)}?newText=${encodeURIComponent(newText)}`
+                        : `${editUrlBase}?id=${encodeURIComponent(id)}&newText=${encodeURIComponent(newText)}`;
+                    const res = await fetch(url, { method: 'POST' });
                     if (!res.ok) throw new Error(await res.text());
                     msgDiv.innerHTML = newText + `<div class="message-time">${timeTxt}</div>`;
                 } catch (err) {
                     console.error('Edit error:', err);
-                    msgDiv.textContent = original;
-                    msgDiv.insertAdjacentHTML('beforeend', `<div class="message-time">${timeTxt}</div>`);
+                    cancelEdit();
                 }
-            }
-
-            // Відмінити редагування
-            function cancelEdit() {
-                msgDiv.textContent = original;
-                msgDiv.insertAdjacentHTML('beforeend', `<div class="message-time">${timeTxt}</div>`);
             }
 
             input.addEventListener('keydown', e => {
@@ -127,8 +127,8 @@
                     cancelEdit();
                 }
             });
-
             input.addEventListener('blur', cancelEdit);
         });
     });
+
 })();

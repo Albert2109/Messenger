@@ -13,19 +13,22 @@
         <small class="text-muted">@Model.CurrentUserEmail</small>
     </div>
 
-    <!-- One‑to‑one Chats -->
+    
     <h6 class="d-flex justify-content-between align-items-center">
         Чати
-        <button class="btn btn-sm btn-outline-primary" id="btnNewGroup">+ Група</button>
+        <button class="btn btn-sm btn-outline-primary" id="btnNewGroup">+ Група</button>
     </h6>
     <ul class="list-group chat-list mb-3">
         @foreach (var c in Model.Chats)
         {
-            var active = (!Model.SelectedGroupId.HasValue && c.UserId == Model.SelectedChatId) ? "active" : "";
+            var active = (!Model.SelectedGroupId.HasValue && c.UserId == Model.SelectedChatId)
+            ? "active"
+            : "";
             <li class="list-group-item @active p-2 d-flex align-items-center" data-user-id="@c.UserId">
                 <img src="@c.AvaUrl" class="avatar clickable-avatar me-2" data-user-id="@c.UserId" />
 
                 <a asp-action="Index"
+                   asp-controller="MessangerHome"
                    asp-route-chatId="@c.UserId"
                    class="flex-grow-1 d-flex justify-content-between text-decoration-none text-dark">
                     <span>@c.Login</span>
@@ -35,17 +38,21 @@
         }
     </ul>
 
-    <!-- Group Chats -->
+  
     <h6>Групи</h6>
     <ul class="list-group group-list">
         @foreach (var g in Model.Groups)
         {
             var gActive = (Model.SelectedGroupId == g.GroupId) ? "active" : "";
-            <li class="list-group-item @gActive p-2 d-flex align-items-center" data-group-id="@g.GroupId">
+            <li class="list-group-item @gActive p-2 d-flex align-items-center"
+                data-group-id="@g.GroupId"
+                data-role="@g.Role">
+              
                 <img src="@g.Avatar" class="avatar me-2" />
+
                 <a asp-controller="Group"
                    asp-action="Chat"
-                   asp-route-id="@g.GroupId"
+                   asp-route-groupId="@g.GroupId"
                    class="flex-grow-1 d-flex justify-content-between text-decoration-none text-dark">
                     <span>@g.Name</span>
                     <small class="text-muted">@g.LastAt.ToLocalTime():HH:mm</small>
@@ -56,4 +63,30 @@
 
     <input id="userSearch" class="form-control mt-3 mb-2" placeholder="Пошук за логіном або email" />
     <ul id="searchResults" class="list-group mb-3"></ul>
+</div>
+<div class="modal fade" id="groupManageModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Управління групою</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong>Група:</strong> <span id="gm-modal-title"></span></p>
+                <hr />
+                <h6>Учасники</h6>
+                <ul class="list-group mb-3" id="gm-member-list"></ul>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" id="gm-search-input" placeholder="Пошук по логіну або email…">
+                    <button class="btn btn-outline-primary" id="gm-search-btn">🔍</button>
+                </div>
+                <ul class="list-group mb-3" id="gm-search-results"></ul>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-warning" id="gm-leave-btn">🚪 Покинути групу</button>
+                <button class="btn btn-danger" id="gm-delete-btn">🗑️ Видалити групу</button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Закрити</button>
+            </div>
+        </div>
+    </div>
 </div>

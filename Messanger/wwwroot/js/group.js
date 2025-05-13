@@ -1,12 +1,4 @@
-﻿// -------------------------------------------------
-//     wwwroot/js/group.js
-//     Клієнтська логіка групових чатів
-// -------------------------------------------------
-/* global bootstrap, signalR, window, fetch */
-
-// ──────────────────────────────────────────────────
-// 0)  SignalR: підключення до GroupHub
-// ──────────────────────────────────────────────────
+﻿
 const groupHub = new signalR.HubConnectionBuilder()
     .withUrl(`/groupHub?userId=${window.chatConfig.currentUserId}`)
     .withAutomaticReconnect()
@@ -23,15 +15,13 @@ const groupHub = new signalR.HubConnectionBuilder()
     }
 })();
 
-// ──────────────────────────────────────────────────
-// 1)  Модалка «Створити групу»
-// ──────────────────────────────────────────────────
+
 const btnNewGroup = document.getElementById("btnNewGroup");
 const modalNewGroup = new bootstrap.Modal("#newGroupModal");
 
 btnNewGroup?.addEventListener("click", () => modalNewGroup.show());
 
-// елементи всередині модалки
+
 const frmNew = document.getElementById("newGroupForm");
 const inpName = document.getElementById("groupName");
 const inpAva = document.getElementById("groupAva");
@@ -39,7 +29,7 @@ const inpQuery = document.getElementById("userSearchInModal");
 const ulFound = document.getElementById("searchList");
 const ulChosen = document.getElementById("chosenList");
 
-// ---- live‑пошук користувачів ---------------------------------
+
 let debounceId = 0;
 inpQuery?.addEventListener("input", () => {
     clearTimeout(debounceId);
@@ -49,8 +39,8 @@ inpQuery?.addEventListener("input", () => {
 
     debounceId = setTimeout(async () => {
         const res = await fetch(`/Account/Search?q=${encodeURIComponent(q)}`);
-        const users = await res.json(); // [{id, login, ava}, ...]
-        // приховуємо вже обраних
+        const users = await res.json();
+        
         const chosenIds = Array.from(ulChosen.querySelectorAll("[data-id]"))
             .map(li => li.dataset.id);
 
@@ -68,7 +58,7 @@ inpQuery?.addEventListener("input", () => {
     }, 300);
 });
 
-// ---- додавання до списку «Учасники» ---------------------------
+
 ulFound?.addEventListener("click", e => {
     const btn = e.target.closest("button[data-add]");
     if (!btn) return;
@@ -89,13 +79,13 @@ ulFound?.addEventListener("click", e => {
     inpQuery.value = "";
 });
 
-// ---- видалення зі списку -------------------------------------
+
 ulChosen?.addEventListener("click", e => {
     const btn = e.target.closest("button[data-remove]");
     if (btn) btn.closest("li")?.remove();
 });
 
-// ---- сабміт форми -------------------------------------------
+
 frmNew?.addEventListener("submit", async e => {
     e.preventDefault();
 
@@ -115,9 +105,7 @@ frmNew?.addEventListener("submit", async e => {
     }
 });
 
-// ──────────────────────────────────────────────────
-// 2)  API‑обгортка дій з групою
-// ──────────────────────────────────────────────────
+
 async function post(url, data) {
     const fm = new FormData();
     if (data) Object.entries(data).forEach(([k, v]) => fm.append(k, v));
@@ -138,15 +126,13 @@ window.GroupApi = {
     }
 };
 
-// ──────────────────────────────────────────────────
-// 3)  SignalR події (поки що — просте перезавантаження списку)
-// ──────────────────────────────────────────────────
+
 const refresh = () => location.reload();
 
 groupHub.on("GroupCreated", refresh);
 groupHub.on("GroupDeleted", id => {
     if (window.chatConfig.currentGroupId === id) {
-        location.href = "/";
+        location.href = "/MessangerHome";
     } else refresh();
 });
 groupHub.on("GroupRenamed", (id, name) => {

@@ -93,7 +93,7 @@ namespace Messanger.Controllers
                 })
                 .ToListAsync();
 
-            // ─── сам 1-на-1 чат ───
+            
             if (chatId.HasValue)
             {
                 vm.Messages = await _db.Messages
