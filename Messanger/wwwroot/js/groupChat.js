@@ -8,21 +8,29 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         const { currentUserId, currentGroupId } = window.chatConfig;
-
-        
-        if (currentGroupId == null) return;
+        if (currentGroupId == null) return; 
 
         const origin = window.location.origin;
         const hubUrl = `${origin}/groupHub?userId=${currentUserId}`;
         const sendTextUrl = `${origin}/Group/${currentGroupId}/SendMessage`;
         const sendFileUrl = `${origin}/Group/${currentGroupId}/UploadFile`;
 
-        
+
         const connection = new signalR.HubConnectionBuilder()
             .withUrl(hubUrl)
             .withAutomaticReconnect()
             .configureLogging(signalR.LogLevel.Information)
             .build();
+
+
+        connection.on('UserOnline', uid => {
+            document.querySelectorAll(`.avatar[data-user-id="${uid}"]`)
+                .forEach(img => img.classList.add('online'));
+        });
+        connection.on('UserOffline', uid => {
+            document.querySelectorAll(`.avatar[data-user-id="${uid}"]`)
+                .forEach(img => img.classList.remove('online'));
+        });
 
         connection.onreconnected(id => console.log('✅ GroupHub reconnected', id));
         connection.onreconnecting(err => console.warn('🔄 GroupHub reconnecting', err));
@@ -38,31 +46,29 @@
             }
         })();
 
-        
         function makeLinks(text) {
             return text.replace(/(https?:\/\/[^\s]+)/g,
                 '<a href="$1" target="_blank">$1</a>');
         }
 
-        
         function appendGroupMessage({ id, userId, avatar, text, timestamp }) {
             if (document.querySelector(`[data-message-id="${id}"]`)) return;
             const md = document.getElementById('messages');
             const wrap = document.createElement('div');
-            wrap.className = 'message-wrapper ' + (userId == currentUserId ? 'justify-content-end' : 'justify-content-start');
+            wrap.className = 'message-wrapper ' +
+                (userId == currentUserId ? 'justify-content-end' : 'justify-content-start');
             wrap.dataset.messageId = id;
             wrap.dataset.userId = userId;
 
             wrap.innerHTML = `
-        <img src="${avatar}" 
-             class="avatar ${userId == currentUserId ? 'ms-2' : 'me-2'}" 
+        <img src="${avatar}"
+             class="avatar ${userId == currentUserId ? 'ms-2' : 'me-2'}"
              data-user-id="${userId}" />
         <div class="message ${userId == currentUserId ? 'message-right' : 'message-left'}">
           ${makeLinks(text)}
           <div class="message-time">${timestamp}</div>
         </div>
       `;
-
             md.appendChild(wrap);
             md.scrollTop = md.scrollHeight;
         }
@@ -71,13 +77,14 @@
             if (document.querySelector(`[data-message-id="${id}"]`)) return;
             const md = document.getElementById('messages');
             const wrap = document.createElement('div');
-            wrap.className = 'message-wrapper ' + (userId == currentUserId ? 'justify-content-end' : 'justify-content-start');
+            wrap.className = 'message-wrapper ' +
+                (userId == currentUserId ? 'justify-content-end' : 'justify-content-start');
             wrap.dataset.messageId = id;
             wrap.dataset.userId = userId;
 
             wrap.innerHTML = `
-        <img src="${avatar}" 
-             class="avatar ${userId == currentUserId ? 'ms-2' : 'me-2'}" 
+        <img src="${avatar}"
+             class="avatar ${userId == currentUserId ? 'ms-2' : 'me-2'}"
              data-user-id="${userId}" />
         <div class="message ${userId == currentUserId ? 'message-right' : 'message-left'}">
           <div class="file-preview"></div>
@@ -98,7 +105,6 @@
             md.scrollTop = md.scrollHeight;
         }
 
-        
         connection.on('ReceiveGroupMessage', (id, userId, login, email, avatar, text, timestamp) => {
             appendGroupMessage({ id, userId, avatar, text, timestamp });
         });
@@ -117,13 +123,11 @@
             msgDiv.innerHTML = makeLinks(newText) + `<div class="message-time">${time}</div>`;
         });
 
-        
         document.getElementById('sendMessageBtn').addEventListener('click', async e => {
             e.preventDefault();
             const input = document.getElementById('messageInput');
             const text = input.value.trim();
             if (!text) return;
-
             try {
                 await fetch(sendTextUrl, {
                     method: 'POST',
@@ -140,10 +144,8 @@
             e.preventDefault();
             const fi = document.getElementById('fileInput');
             if (!fi.files.length) return;
-
             const form = new FormData();
             form.append('file', fi.files[0]);
-
             try {
                 await fetch(sendFileUrl, { method: 'POST', body: form });
                 fi.value = '';
