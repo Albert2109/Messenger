@@ -3,7 +3,7 @@
     ViewData["Title"] = "Груповий чат";
 }
 
-<link rel="stylesheet" href="~/css/MessangerHomeStyle.css" />
+
 
 <div class="d-flex" style="height:100%">
     @await Html.PartialAsync("_Sidebar", Model)
@@ -40,6 +40,7 @@
     <script src ="~/js/MessengerContextMenu.js"></script>
     <script src = "~/js/groupChat.js"></script>
     <script src="~/js/groupContextMenu.js"></script>
+    <script src="~/js/userSearch.js"></script>
     <script>
         (function() {
             const input = document.getElementById('fileInput');

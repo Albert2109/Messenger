@@ -4,6 +4,7 @@
     using Microsoft.AspNetCore.Mvc;
     using Microsoft.AspNetCore.SignalR;
     using Microsoft.EntityFrameworkCore;
+using static System.Net.Mime.MediaTypeNames;
 
     namespace Messanger.Controllers;
 
@@ -428,11 +429,20 @@
             action(msg, me);
             await _db.SaveChangesAsync();
 
-            
-            await _hub.Clients.Group($"group-{msg.GroupId}")
-                .SendAsync(hubEvent, id, args);
 
-            return Ok();
+        if (args.Length > 0)
+                    {
+            var text = args[0];
+            await _hub.Clients.Group($"group-{msg.GroupId}")
+                            .SendAsync(hubEvent, id, text);
+                   }
+                else
+                    {
+            await _hub.Clients.Group($"group-{msg.GroupId}")
+                           .SendAsync(hubEvent, id);
+                    }
+
+        return Ok();
         }
         [HttpGet("{groupId:int}/Download")]
         public IActionResult Download(int groupId, string file, string name)

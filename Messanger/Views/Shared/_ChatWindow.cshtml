@@ -11,88 +11,80 @@
 }
 else
 {
+   
     <div class="mb-3">
         <h5>
             @(
                 Model.SelectedChatId != null
-                ? "Чат з " +
-                (Model.Chats
-                .FirstOrDefault(c => c.UserId == Model.SelectedChatId)
-                ?.Login
-                ?? "невідомим користувачем")
-                : (
-                Model.Groups
-                .FirstOrDefault(g => g.GroupId == Model.SelectedGroupId)
-                ?.Name
-                ?? "Групу не знайдено"
-                )
+                ? $"Чат з {Model.Chats.First(c => c.UserId == Model.SelectedChatId).Login}"
+                : Model.Groups.First(g => g.GroupId == Model.SelectedGroupId).Name
                 )
         </h5>
     </div>
 
+  
     <div id="messages" class="messages mb-3 flex-grow-1">
         @foreach (var m in Model.Messages)
         {
             <div class="message-wrapper @(m.IsOwn ? "justify-content-end" : "justify-content-start")"
                  data-message-id="@m.Id">
-                <img src="@(m.IsOwn ? Model.CurrentUserAva : m.UserAvatar)"
+                <img src="@(m.IsOwn
+                             ? (Model.CurrentUserAva ?? "/images/default-avatar.png")
+                             : m.UserAvatar)"
                      class="avatar @(m.IsOwn ? "ms-2" : "me-2")"
                      data-user-id="@(m.IsOwn ? Model.CurrentUserId : m.UserId)" />
+
                 <div class="message @(m.IsOwn ? "message-right" : "message-left")">
-                   
+
+                    
                     @if (m.HasText)
                     {
-                        var encoded = HtmlEncoder.Default.Encode(m.Text!);
+                        var encoded = HtmlEncoder.Default.Encode(m.Text ?? string.Empty);
                         var linked = Regex.Replace(encoded,
                         @"(https?://\S+)",
                         "<a href=\"$1\" target=\"_blank\">$1</a>");
-                        @Html.Raw(linked.Replace("\n", "<br/>"))
+                        @Html.Raw(linked.Replace("\n", "<br />"))
                     }
 
-                    
+                   
                     @if (m.HasFile)
                     {
-                        var ext = System.IO.Path.GetExtension(m.FileName!)?.ToLowerInvariant();
+                        var ext = System.IO.Path.GetExtension(m.FileName!).ToLowerInvariant();
                         <div class="file-container mb-2">
-                            @if (new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" }.Contains(ext))
+                            @switch (ext)
                             {
-                                <img src="@m.FileUrl"
-                                     class="msg-img preview-image rounded mb-1"
-                                     loading="lazy" />
+                                case ".jpg" or ".jpeg" or ".png" or ".gif" or ".webp":
+                                    <img src="@m.FileUrl" class="msg-img preview-image rounded mb-1" loading="lazy" />
+                                    break;
+                                case ".mp4" or ".webm" or ".mov":
+                                    <video controls src="@m.FileUrl" class="msg-video preview-video mb-1"></video>
+                                    break;
+                                case ".mp3" or ".wav" or ".ogg":
+                                    <audio controls src="@m.FileUrl" class="w-100 preview-audio mb-1"></audio>
+                                    break;
+                                default:
+                                    <a href="@m.FileUrl" class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-file-earmark"></i> @m.FileName
+                                    </a>
+                                    break;
                             }
-                            else if (new[] { ".mp4", ".webm", ".mov" }.Contains(ext))
-                            {
-                                <video controls
-                                       src="@m.FileUrl"
-                                       class="msg-video preview-video mb-1"></video>
-                            }
-                            else if (new[] { ".mp3", ".wav", ".ogg" }.Contains(ext))
-                            {
-                                <audio controls
-                                       src="@m.FileUrl"
-                                       class="w-100 preview-audio mb-1"></audio>
-                            }
-                            else
-                            {
-                                <a href="@m.FileUrl"
-                                   class="btn btn-sm btn-outline-secondary">
-                                    <i class="bi bi-file-earmark"></i> @m.FileName
-                                </a>
-                            }
+
                             <a href="@m.FileUrl"
                                download="@m.FileName"
                                class="preview-download btn btn-sm btn-outline-primary ms-2">
-                                ⬇️ Завантажити
+                                ⬇️ Завантажити
                             </a>
                         </div>
                     }
 
-                    <div class="message-time">@m.CreatedAt.ToLocalTime():HH:mm</div>
+                    <div class="message-time">
+                        @m.CreatedAt.ToLocalTime().ToString("HH:mm")
+                    </div>
                 </div>
             </div>
         }
     </div>
 
-    
+   
     <partial name="_ChatInput" model="Model" />
 }

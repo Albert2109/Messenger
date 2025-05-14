@@ -129,7 +129,7 @@
             } else {
                 const [login, , avatar, text, timestamp] = args;
                 appendMessage({
-                    id: `${login}-${timestamp}`,
+                    id: crypto.randomUUID(),
                     userId: null,
                     login,
                     avatar,
@@ -147,7 +147,7 @@
             } else {
                 const [login, , avatar, text, timestamp] = args;
                 appendMessage({
-                    id: `${login}-${timestamp}`,
+                    id: crypto.randomUUID(),
                     userId: currentUserId,
                     login,
                     avatar,
@@ -164,7 +164,7 @@
             } else {
                 const [login, , avatar, url, fileName, timestamp] = args;
                 appendFile({
-                    id: `${url}-${timestamp}`,
+                    id: crypto.randomUUID(),
                     userId: null,
                     login,
                     avatar,
@@ -183,7 +183,7 @@
             } else {
                 const [login, , avatar, url, fileName, timestamp] = args;
                 appendFile({
-                    id: `${url}-${timestamp}`,
+                    id: crypto.randomUUID(),
                     userId: currentUserId,
                     login,
                     avatar,
@@ -237,20 +237,6 @@
                 console.error('UploadFile error', err);
             }
         });
-        document.getElementById('userSearch').addEventListener('input', e => {
-            const q = e.target.value.trim();
-            const list = document.getElementById('searchResults');
-            list.innerHTML = '';
-            if (q.length < 2) return;
-            fetch(`${origin}/Account/Search?q=${encodeURIComponent(q)}`)
-                .then(r => r.json())
-                .then(users => users.forEach(u => {
-                    const li = document.createElement('li');
-                    li.className = 'list-group-item list-group-item-action';
-                    li.textContent = `${u.login} (${u.email})`;
-                    li.onclick = () => window.location.search = `?chatId=${u.id}`;
-                    list.appendChild(li);
-                }));
-        });
+       
     });
 })();

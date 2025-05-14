@@ -154,3 +154,14 @@
         border: 2px solid #fff;
         border-radius: 50%;
     }
+.message-wrapper.justify-content-end .message {
+    margin-right: 0.5rem;
+}
+
+
+.message-wrapper.justify-content-start .message {
+    margin-left: 0.5rem;
+}
+.message-wrapper.justify-content-end:not([data-user-id]) {
+    gap: 0;
+}

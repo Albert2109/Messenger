@@ -1,4 +1,4 @@
-﻿// GroupHub.cs
+﻿
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
@@ -23,10 +23,10 @@ namespace Messanger.Hubs
 
         public override async Task OnConnectedAsync()
         {
-            // спочатку базова логіка (online–offline + особиста група)
+           
             await base.OnConnectedAsync();
 
-            // потім — приєднати до всіх його груп
+            
             var http = Context.GetHttpContext();
             if (http.Request.Query.TryGetValue("userId", out var uidVal)
                 && int.TryParse(uidVal.First(), out var userId))
@@ -43,7 +43,7 @@ namespace Messanger.Hubs
 
         public override Task OnDisconnectedAsync(System.Exception? exception)
         {
-            // базова логіка з ChatHub (offline тощо)
+           
             return base.OnDisconnectedAsync(exception);
         }
     }

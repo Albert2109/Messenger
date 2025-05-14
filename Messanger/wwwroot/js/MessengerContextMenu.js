@@ -106,17 +106,31 @@
             async function saveEdit() {
                 const newText = input.value.trim();
                 const id = wrapper.dataset.messageId;
-                try {
-                    let url = isGroup
-                        ? `${editUrlBase}/${encodeURIComponent(id)}?newText=${encodeURIComponent(newText)}`
-                        : `${editUrlBase}?id=${encodeURIComponent(id)}&newText=${encodeURIComponent(newText)}`;
-                    const res = await fetch(url, { method: 'POST' });
-                    if (!res.ok) throw new Error(await res.text());
-                    msgDiv.innerHTML = newText + `<div class="message-time">${timeTxt}</div>`;
-                } catch (err) {
-                    console.error('Edit error:', err);
+                const url = isGroup
+                    ? `${editUrlBase}/${encodeURIComponent(id)}`
+                    : editUrlBase;            
+
+               
+                const params = new URLSearchParams();
+                if (!isGroup) params.append('id', id);
+                params.append('newText', newText);
+
+                console.log('POST', url, params.toString());
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params.toString()
+                });
+                console.log('Status:', res.status, 'ok:', res.ok);
+                if (!res.ok) {
+                    console.error('Edit error:', await res.text());
                     cancelEdit();
+                    return;
                 }
+
+                
+                msgDiv.innerHTML =
+                    `${newText}<div class="message-time">${timeTxt}</div>`;
             }
 
             input.addEventListener('keydown', e => {

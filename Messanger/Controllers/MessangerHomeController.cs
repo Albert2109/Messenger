@@ -27,7 +27,7 @@ namespace Messanger.Controllers
         }
 
         // ─────────────── INDEX ───────────────
-        
+
         [HttpGet]
         public async Task<IActionResult> Index(int? chatId)
         {
@@ -41,10 +41,10 @@ namespace Messanger.Controllers
                 CurrentUserEmail = HttpContext.Session.GetString("Email") ?? "",
                 CurrentUserAva = HttpContext.Session.GetString("Ava"),
                 SelectedChatId = chatId,
-                SelectedGroupId = null  
+                SelectedGroupId = null
             };
 
-           
+
             vm.Chats = await _db.Users
                 .Where(u => _db.Messages.Any(m =>
                     (m.UserId == me && m.RecipientId == u.UserId) ||
@@ -69,7 +69,7 @@ namespace Messanger.Controllers
                 .OrderByDescending(c => c.LastAt)
                 .ToListAsync();
 
-            
+
             vm.Groups = await _db.GroupMembers
                 .Where(gm => gm.UserId == me && !gm.IsRemoved && !gm.Group.IsDeleted)
                 .Select(gm => new {
@@ -93,7 +93,7 @@ namespace Messanger.Controllers
                 })
                 .ToListAsync();
 
-            
+
             if (chatId.HasValue)
             {
                 vm.Messages = await _db.Messages
@@ -143,7 +143,7 @@ namespace Messanger.Controllers
 
             var timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
 
-            
+
             await _hub.Clients.Groups(me.ToString(), chatId.ToString())
                      .SendAsync("ReceivePrivateMessage",
                                 login, email, ava, text, timestamp);
@@ -215,7 +215,7 @@ namespace Messanger.Controllers
                 || msg.UserId != me)
                 return Unauthorized();
 
-            
+
             if (msg.GroupId.HasValue)
                 return BadRequest();
 
