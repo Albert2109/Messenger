@@ -1,4 +1,4 @@
-﻿using Messanger.Hubs;
+using Messanger.Hubs;
 using Messanger.Model;
 using Messanger.Models;
 using Messanger.Models.ViewModels;
@@ -44,7 +44,7 @@ namespace Messanger.Controllers
                 return View(model);
             }
 
-            if (_messengerContext.users.Any(u => u.Email == model.EmailAddress))
+            if (_messengerContext.Users.Any(u => u.Email == model.EmailAddress))
             {
                 ModelState.TryAddModelError("EmailAddress", "Електронна пошта вже використовується");
                 _logger.LogWarning("Спроба реєстрації з вже існуючою електронною поштою: {Email}", model.EmailAddress);
@@ -84,7 +84,7 @@ namespace Messanger.Controllers
                 ava = relativePath 
             };
 
-            _messengerContext.users.Add(user);
+            _messengerContext.Users.Add(user);
             await _messengerContext.SaveChangesAsync();
 
             _logger.LogInformation("Успішна реєстрація користувача: {Email}", model.EmailAddress);
@@ -101,7 +101,7 @@ namespace Messanger.Controllers
                 return View(model);
             }
 
-            var user = _messengerContext.users
+            var user = _messengerContext.Users
                 .FirstOrDefault(u => u.Email == model.EmailAddress);
 
             var hashpassword = HashPassword(model.Password);
@@ -126,7 +126,7 @@ namespace Messanger.Controllers
         [HttpGet]
         public async Task<IActionResult> GetProfile(int id)
         {
-            var user = await _messengerContext.users.FindAsync(id);
+            var user = await _messengerContext.Users.FindAsync(id);
             if (user == null) return NotFound();
             return Json(new
             {
@@ -142,7 +142,7 @@ namespace Messanger.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            var user = await _messengerContext.users.FindAsync(model.UserId);
+            var user = await _messengerContext.Users.FindAsync(model.UserId);
             if (user == null) return NotFound();
 
            
@@ -176,7 +176,19 @@ namespace Messanger.Controllers
             return Ok();
         }
 
+        [HttpGet("/Account/Search")]
+        public async Task<IActionResult> Search(string q)
+        {
+            if (string.IsNullOrWhiteSpace(q)) return Json(Array.Empty<object>());
 
+            var users = await _messengerContext.Users
+                .Where(u => u.Login.Contains(q) || u.Email.Contains(q))
+                .Select(u => new { id = u.UserId, login = u.Login, ava = u.ava ?? "/images/default-avatar.png" })
+                .Take(10)
+                .ToListAsync();
+
+            return Json(users);
+        }
 
         private string HashPassword(string password)
         {
