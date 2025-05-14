@@ -3,7 +3,7 @@
 @using System.Text.RegularExpressions
 @using System.IO
 
-@if (Model.SelectedChatId == null && Model.SelectedGroupId == null)
+@if (Model.SelectedChatId is null && Model.SelectedGroupId is null)
 {
     <div class="d-flex flex-grow-1 justify-content-center align-items-center">
         <span class="text-muted">Оберіть чат або групу ліворуч</span>
@@ -11,42 +11,52 @@
 }
 else
 {
-   
+    <!-- Заголовок -->
     <div class="mb-3">
         <h5>
             @(
-                Model.SelectedChatId != null
-                ? $"Чат з {Model.Chats.First(c => c.UserId == Model.SelectedChatId).Login}"
-                : Model.Groups.First(g => g.GroupId == Model.SelectedGroupId).Name
+                Model.SelectedChatId is int chatId
+                ? $"Чат з {Model.Chats.FirstOrDefault(c => c.UserId == chatId)?.Login ?? "невідомо"}"
+                : Model.Groups.FirstOrDefault(g => g.GroupId == Model.SelectedGroupId)?.Name
+                ?? "Невідомий діалог"
                 )
         </h5>
     </div>
 
-  
+    <!-- Повідомлення -->
     <div id="messages" class="messages mb-3 flex-grow-1">
+        @{
+            int? lastUser = null;   /* щоб не дублювати аватар */
+        }
         @foreach (var m in Model.Messages)
         {
-            <div class="message-wrapper @(m.IsOwn ? "justify-content-end" : "justify-content-start")"
-                 data-message-id="@m.Id">
-                <img src="@(m.IsOwn
-                             ? (Model.CurrentUserAva ?? "/images/default-avatar.png")
-                             : m.UserAvatar)"
-                     class="avatar @(m.IsOwn ? "ms-2" : "me-2")"
-                     data-user-id="@(m.IsOwn ? Model.CurrentUserId : m.UserId)" />
+            var isOwn = m.IsOwn;
+            var userId = isOwn ? Model.CurrentUserId : m.UserId;
+            var showAva = lastUser != userId;
+            lastUser = userId;
 
-                <div class="message @(m.IsOwn ? "message-right" : "message-left")">
+            <div class="message-wrapper @(isOwn ? "own justify-content-end" : "justify-content-start")"
+                 data-message-id="@m.Id" data-user-id="@userId">
 
-                    
+                @* аватар показуємо лише для першого повідомлення автора *@
+                @if (showAva)
+                {
+                    <img src="@(isOwn ? Model.CurrentUserAva ?? "/images/default-avatar.png" : m.UserAvatar)"
+                         class="avatar" data-user-id="@userId" />
+                }
+
+                <div class="message @(isOwn ? "message-right" : "message-left")">
+
+                    @* текст ******************************************************** *@
                     @if (m.HasText)
                     {
                         var encoded = HtmlEncoder.Default.Encode(m.Text ?? string.Empty);
-                        var linked = Regex.Replace(encoded,
-                        @"(https?://\S+)",
+                        var linked = Regex.Replace(encoded, @"(https?://\S+)",
                         "<a href=\"$1\" target=\"_blank\">$1</a>");
                         @Html.Raw(linked.Replace("\n", "<br />"))
                     }
 
-                   
+                    @* файл ******************************************************** *@
                     @if (m.HasFile)
                     {
                         var ext = System.IO.Path.GetExtension(m.FileName!).ToLowerInvariant();
@@ -69,8 +79,7 @@ else
                                     break;
                             }
 
-                            <a href="@m.FileUrl"
-                               download="@m.FileName"
+                            <a href="@m.FileUrl" download="@m.FileName"
                                class="preview-download btn btn-sm btn-outline-primary ms-2">
                                 ⬇️ Завантажити
                             </a>
@@ -85,6 +94,5 @@ else
         }
     </div>
 
-   
     <partial name="_ChatInput" model="Model" />
 }

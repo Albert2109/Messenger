@@ -26,7 +26,7 @@ namespace Messanger.Controllers
             _hub = hub;
         }
 
-        // ─────────────── INDEX ───────────────
+        
 
         [HttpGet]
         public async Task<IActionResult> Index(int? chatId)
@@ -122,7 +122,7 @@ namespace Messanger.Controllers
         }
 
 
-        // ─────────── SEND PRIVATE MESSAGE ───────────
+        
         [HttpPost]
         public async Task<IActionResult> SendMessage(int chatId, string text)
         {
@@ -145,14 +145,19 @@ namespace Messanger.Controllers
 
 
             await _hub.Clients.Groups(me.ToString(), chatId.ToString())
-                     .SendAsync("ReceivePrivateMessage",
-                                login, email, ava, text, timestamp);
+          
+           .SendAsync("ReceivePrivateMessage",
+                      me,                      
+                      login,
+                      ava,
+                      text,
+                      timestamp);
 
             return Ok();
         }
 
 
-        // ─────────── UPLOAD PRIVATE FILE ───────────
+        
         [HttpPost]
         public async Task<IActionResult> UploadFile(
             [FromForm] int chatId,
@@ -194,7 +199,7 @@ namespace Messanger.Controllers
             return Ok();
         }
 
-        // ─────────── DELETE / EDIT PRIVATE ───────────
+       
         [HttpPost]
         public Task<IActionResult> DeleteMessage(int id) =>
             MutatePrivate(id, (m, me) => _db.Messages.Remove(m), "MessageDeleted");
@@ -237,7 +242,7 @@ namespace Messanger.Controllers
             return Ok();
         }
 
-        // ─────────── DOWNLOAD ───────────
+        
         [HttpGet]
         public IActionResult Download(string file, string name)
         {

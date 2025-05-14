@@ -24,7 +24,7 @@ using static System.Net.Mime.MediaTypeNames;
             _env = env;
         }
 
-        // ─────────── CREATE ───────────
+        
         [HttpPost("Create")]
         public async Task<IActionResult> Create(string name, IFormFile? avatar,
                                             [FromForm] int[] memberIds)
@@ -48,7 +48,7 @@ using static System.Net.Mime.MediaTypeNames;
                 });
             await _db.SaveChangesAsync();
 
-            //---------------------------------------
+            
     
             await _hub.Groups.AddToGroupAsync(ownerId.ToString(), $"group-{g.GroupId}");
 
@@ -63,7 +63,7 @@ using static System.Net.Mime.MediaTypeNames;
             return Ok(new { g.GroupId });
         }
 
-        // ─────────── ADD MEMBER ───────────
+        
         [HttpPost("{groupId:int}/AddMember")]
         public async Task<IActionResult> AddMember(int groupId, int userId)
         {
@@ -85,7 +85,7 @@ using static System.Net.Mime.MediaTypeNames;
             return Ok();
         }
 
-        // ─────────── REMOVE MEMBER ───────────
+       
         [HttpPost("{groupId:int}/RemoveMember")]
         public async Task<IActionResult> RemoveMember(int groupId, int userId)
         {
@@ -109,7 +109,7 @@ using static System.Net.Mime.MediaTypeNames;
             return Ok();
         }
 
-        // ─────────── RENAME ───────────
+        
         [HttpPost("{groupId:int}/Rename")]
         public async Task<IActionResult> Rename(int groupId, string name)
         {
@@ -131,7 +131,7 @@ using static System.Net.Mime.MediaTypeNames;
             return Ok();
         }
 
-        // ─────────── CHANGE AVATAR ───────────
+        
         [HttpPost("{groupId:int}/Avatar")]
         public async Task<IActionResult> ChangeAvatar(int groupId, IFormFile file)
         {
@@ -152,7 +152,7 @@ using static System.Net.Mime.MediaTypeNames;
             return Ok();
         }
 
-        // ─────────── TRANSFER OWNER ───────────
+        
         [HttpPost("{groupId:int}/TransferOwner")]
         public async Task<IActionResult> TransferOwner(int groupId, int newOwnerId)
         {
@@ -177,7 +177,7 @@ using static System.Net.Mime.MediaTypeNames;
             return Ok();
         }
 
-        // ─────────── LEAVE ───────────
+      
         [HttpPost("{groupId:int}/Leave")]
         public async Task<IActionResult> Leave(int groupId)
         {
@@ -198,7 +198,7 @@ using static System.Net.Mime.MediaTypeNames;
             return Ok();
         }
 
-        // ─────────── DELETE ───────────
+        
         [HttpPost("{groupId:int}/Delete")]
         public async Task<IActionResult> Delete(int groupId)
         {
@@ -302,7 +302,7 @@ using static System.Net.Mime.MediaTypeNames;
             return View("Chat", vm);
         }
 
-        // ─────────── util ───────────
+        
         private async Task<string> SaveFile(IFormFile f)
         {
             var uploads = Path.Combine(_env.WebRootPath, "uploads", "groups");
@@ -316,7 +316,7 @@ using static System.Net.Mime.MediaTypeNames;
 
             return $"/uploads/groups/{unique}";
         }
-        // ─────────── SEND GROUP MESSAGE ───────────
+        
         [HttpPost("{groupId:int}/SendMessage")]
         public async Task<IActionResult> SendMessage(int groupId, string text)
         {
@@ -351,7 +351,7 @@ using static System.Net.Mime.MediaTypeNames;
 
             return Ok();
         }
-        // ─────────── UPLOAD GROUP FILE ───────────
+       
         [HttpPost("{groupId:int}/UploadFile")]
         public async Task<IActionResult> UploadFile(int groupId, IFormFile file)
         {
@@ -397,14 +397,14 @@ using static System.Net.Mime.MediaTypeNames;
             return Ok();
         }
 
-        // ─────────── DELETE GROUP MESSAGE ───────────
+      
         [HttpPost("DeleteMessage/{id:int}")]
         public Task<IActionResult> DeleteMessage(int id)
             => MutateGroup(id,
                   (m, me) => _db.Messages.Remove(m),
                   "GroupMessageDeleted");
 
-        // ─────────── EDIT GROUP MESSAGE ───────────
+        
         [HttpPost("EditMessage/{id:int}")]
         public Task<IActionResult> EditMessage(int id, string newText)
             => MutateGroup(id,

@@ -140,22 +140,18 @@
             }
         });
 
-        connection.on('ReceivePrivateMessage', (...args) => {
-            if (args.length === 1 && typeof args[0] === 'object') {
-                const msg = args[0];
-                appendMessage({ ...msg, isOwn: msg.userId == currentUserId });
-            } else {
-                const [login, , avatar, text, timestamp] = args;
-                appendMessage({
-                    id: crypto.randomUUID(),
-                    userId: currentUserId,
-                    login,
-                    avatar,
-                    text,
-                    timestamp,
-                    isOwn: true
-                });
-            }
+        connection.on('ReceivePrivateMessage', (senderId, login, avatar, text, timestamp) => {
+            const isOwn = senderId == currentUserId;
+
+            appendMessage({
+                id: crypto.randomUUID(),
+                userId: senderId,
+                login,
+                avatar,
+                text,
+                timestamp,
+                isOwn
+            });
         });
 
         connection.on('ReceiveFile', (...args) => {
@@ -176,24 +172,25 @@
             }
         });
 
-        connection.on('ReceivePrivateFile', (...args) => {
-            if (args.length === 1 && typeof args[0] === 'object') {
-                const msg = args[0];
-                appendFile({ ...msg, isOwn: msg.userId == currentUserId });
-            } else {
-                const [login, , avatar, url, fileName, timestamp] = args;
-                appendFile({
-                    id: crypto.randomUUID(),
-                    userId: currentUserId,
-                    login,
-                    avatar,
-                    url,
-                    fileName,
-                    timestamp,
-                    isOwn: true
-                });
-            }
+        connection.on('ReceivePrivateFile', (senderId, url, fileName, timestamp) => {
+            const isOwn = senderId == currentUserId;
+            const avatar = isOwn
+                ? window.chatConfig.currentUserAva ?? "/images/default-avatar.png"
+                : document.querySelector(`.avatar[data-user-id="${senderId}"]`)?.src
+                ?? "/images/default-avatar.png";
+
+            appendFile({
+                id: crypto.randomUUID(),
+                userId: senderId,
+                login: "",
+                avatar,
+                url,
+                fileName,
+                timestamp,
+                isOwn
+            });
         });
+
 
         connection.on('MessageDeleted', messageId => {
             const el = document.querySelector(`[data-message-id="${messageId}"]`);
