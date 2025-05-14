@@ -1,4 +1,4 @@
-﻿
+
 
 (() => {
     if (!window.chatConfig) {

@@ -1,4 +1,4 @@
-﻿using Messanger.Hubs;
+using Messanger.Hubs;
 using Messanger.Model;
 using Messanger.Models;
 using Messanger.Models.ViewModels;
