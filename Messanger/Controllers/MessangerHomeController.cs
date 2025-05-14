@@ -1,88 +1,119 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
+using Messanger.Hubs;
 using Messanger.Models;
 using Messanger.Models.ViewModels;
-using Messanger.Hubs;
-using Microsoft.AspNetCore.SignalR;
 
 namespace Messanger.Controllers
 {
     public class MessangerHomeController : Controller
     {
         private readonly MessengerContext _db;
-        private readonly ILogger<MessangerHomeController> _logger;
+        private readonly ILogger<MessangerHomeController> _log;
         private readonly IWebHostEnvironment _env;
-        private readonly IHubContext<ChatHub> _hubContext;
+        private readonly IHubContext<ChatHub> _hub;
 
         public MessangerHomeController(
             MessengerContext db,
-            ILogger<MessangerHomeController> logger,
+            ILogger<MessangerHomeController> log,
             IWebHostEnvironment env,
-            IHubContext<ChatHub> hubContext)
+            IHubContext<ChatHub> hub)
         {
             _db = db;
-            _logger = logger;
+            _log = log;
             _env = env;
-            _hubContext = hubContext;
+            _hub = hub;
         }
+
+        // ─────────────── INDEX ───────────────
 
         [HttpGet]
         public async Task<IActionResult> Index(int? chatId)
         {
-            var userIdStr = HttpContext.Session.GetString("UserId");
-            if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var userId))
-                return RedirectToAction("Login", "Account");
+            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me))
+                return RedirectToAction("Avtorization", "Account");
 
             var vm = new HomePageViewModel
             {
-                CurrentUserId = userId,
-                CurrentUserLogin = HttpContext.Session.GetString("Login") ?? string.Empty,
-                CurrentUserEmail = HttpContext.Session.GetString("Email") ?? string.Empty,
+                CurrentUserId = me,
+                CurrentUserLogin = HttpContext.Session.GetString("Login") ?? "",
+                CurrentUserEmail = HttpContext.Session.GetString("Email") ?? "",
                 CurrentUserAva = HttpContext.Session.GetString("Ava"),
-                SelectedChatId = chatId
+                SelectedChatId = chatId,
+                SelectedGroupId = null
             };
 
-            
-            var chatList = await _db.Messages
-                .Where(m => m.UserId == userId || m.RecipientId == userId)
-                .Select(m => new
+
+            vm.Chats = await _db.Users
+                .Where(u => _db.Messages.Any(m =>
+                    (m.UserId == me && m.RecipientId == u.UserId) ||
+                    (m.UserId == u.UserId && m.RecipientId == me)))
+                .Select(u => new ChatViewModel
                 {
-                    OtherId = m.UserId == userId ? m.RecipientId : m.UserId,
-                    OtherLogin = m.UserId == userId ? m.Recipient.Login : m.User.Login,
-                    m.Text,
-                    m.CreatedAt
+                    UserId = u.UserId,
+                    Login = u.Login,
+                    LastMessage = _db.Messages
+                        .Where(m =>
+                            (m.UserId == me && m.RecipientId == u.UserId) ||
+                            (m.UserId == u.UserId && m.RecipientId == me))
+                        .OrderByDescending(m => m.CreatedAt)
+                        .Select(m => m.Text)
+                        .FirstOrDefault(),
+                    LastAt = _db.Messages
+                        .Where(m =>
+                            (m.UserId == me && m.RecipientId == u.UserId) ||
+                            (m.UserId == u.UserId && m.RecipientId == me))
+                        .Max(m => m.CreatedAt)
                 })
-                .OrderByDescending(x => x.CreatedAt)
-                .GroupBy(x => x.OtherId)
-                .Select(g => g.First())
+                .OrderByDescending(c => c.LastAt)
                 .ToListAsync();
 
-            vm.Chats = chatList.Select(x => new ChatViewModel
-            {
-                UserId = x.OtherId,
-                Login = x.OtherLogin,
-                LastMessage = x.Text,
-                LastAt = x.CreatedAt
-            }).ToList();
 
-           
+            vm.Groups = await _db.GroupMembers
+                .Where(gm => gm.UserId == me && !gm.IsRemoved && !gm.Group.IsDeleted)
+                .Select(gm => new {
+                    gm.GroupId,
+                    gm.Group.Name,
+                    Avatar = gm.Group.AvatarUrl ?? "/images/default-group.png",
+                    LastAt = _db.Messages
+                                .Where(ms => ms.GroupId == gm.GroupId)
+                                .OrderByDescending(ms => ms.CreatedAt)
+                                .Select(ms => (DateTime?)ms.CreatedAt)
+                                .FirstOrDefault()
+                             ?? gm.Group.CreatedAt
+                })
+                .OrderByDescending(x => x.LastAt)
+                .Select(x => new GroupViewModel
+                {
+                    GroupId = x.GroupId,
+                    Name = x.Name,
+                    Avatar = x.Avatar,
+                    LastAt = x.LastAt
+                })
+                .ToListAsync();
+
+
             if (chatId.HasValue)
             {
                 vm.Messages = await _db.Messages
-                    .Where(m => (m.UserId == userId && m.RecipientId == chatId) ||
-                                (m.UserId == chatId && m.RecipientId == userId))
+                    .Where(m =>
+                        m.GroupId == null &&
+                        ((m.UserId == me && m.RecipientId == chatId) ||
+                         (m.UserId == chatId && m.RecipientId == me)))
                     .Include(m => m.User)
                     .OrderBy(m => m.CreatedAt)
                     .Select(m => new ChatMessageViewModel
                     {
                         Id = m.Id,
+                        UserId = m.UserId,
                         UserLogin = m.User.Login,
                         UserAvatar = m.User.ava ?? "/images/default-avatar.png",
                         Text = m.Text,
                         FileUrl = m.FileUrl,
                         FileName = m.FileName,
                         CreatedAt = m.CreatedAt,
-                        IsOwn = m.UserId == userId
+                        IsOwn = m.UserId == me
                     })
                     .ToListAsync();
             }
@@ -90,20 +121,19 @@ namespace Messanger.Controllers
             return View(vm);
         }
 
-        [HttpPost]
-        public async Task<IActionResult> SendMessage([FromForm] int chatId, [FromForm] string text)
-        {
-            var userIdStr = HttpContext.Session.GetString("UserId");
-            if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var userId))
-                return Unauthorized();
 
-            var login = HttpContext.Session.GetString("Login") ?? "Anonymous";
-            var email = HttpContext.Session.GetString("Email") ?? string.Empty;
+        // ─────────── SEND PRIVATE MESSAGE ───────────
+        [HttpPost]
+        public async Task<IActionResult> SendMessage(int chatId, string text)
+        {
+            var me = int.Parse(HttpContext.Session.GetString("UserId")!);
+            var login = HttpContext.Session.GetString("Login")!;
+            var email = HttpContext.Session.GetString("Email")!;
             var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
-            _logger.LogInformation("SendMessage endpoint: chatId={chatId}, text={text}", chatId, text);
+
             var msg = new Message
             {
-                UserId = userId,
+                UserId = me,
                 RecipientId = chatId,
                 Text = text,
                 CreatedAt = DateTime.UtcNow
@@ -112,21 +142,24 @@ namespace Messanger.Controllers
             await _db.SaveChangesAsync();
 
             var timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
-            await _hubContext.Clients
-    .Groups(new[] { chatId.ToString(), userId.ToString() })
-    .SendAsync("ReceiveMessage", login, email, ava, text, timestamp);
 
 
-            return Ok(new { login, email, ava, text, timestamp });
+            await _hub.Clients.Groups(me.ToString(), chatId.ToString())
+                     .SendAsync("ReceivePrivateMessage",
+                                login, email, ava, text, timestamp);
+
+            return Ok();
         }
 
-        [HttpPost]
-        public async Task<IActionResult> UploadFile([FromForm] int chatId, IFormFile file)
-        {
-            var userIdStr = HttpContext.Session.GetString("UserId");
-            if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var userId))
-                return Unauthorized();
 
+        // ─────────── UPLOAD PRIVATE FILE ───────────
+        [HttpPost]
+        public async Task<IActionResult> UploadFile(
+            [FromForm] int chatId,
+            IFormFile file)
+        {
+            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me))
+                return Unauthorized();
             if (file == null || file.Length == 0)
                 return BadRequest();
 
@@ -137,76 +170,81 @@ namespace Messanger.Controllers
             await using var fs = new FileStream(path, FileMode.Create);
             await file.CopyToAsync(fs);
 
-            var downloadUrl = Url.Action(
-                "Download", "MessangerHome",
-                new { file = unique, name = file.FileName })!;
+            var url = Url.Action("Download", "MessangerHome",
+                                 new { file = unique, name = file.FileName })!;
 
             var msg = new Message
             {
-                UserId = userId,
+                UserId = me,
                 RecipientId = chatId,
-                FileUrl = downloadUrl,
+                GroupId = null,
+                FileUrl = url,
                 FileName = file.FileName,
                 CreatedAt = DateTime.UtcNow
             };
             _db.Messages.Add(msg);
             await _db.SaveChangesAsync();
 
-            var login = HttpContext.Session.GetString("Login") ?? "Anonymous";
-            var email = HttpContext.Session.GetString("Email") ?? string.Empty;
-            var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
-            var timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
+            var ts = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
 
-            await _hubContext.Clients
-    .Groups(new[] { chatId.ToString(), userId.ToString() })
-    .SendAsync("ReceivePrivateFile", login, email, ava, downloadUrl, file.FileName, timestamp);
+            await _hub.Clients.Groups(me.ToString(), chatId.ToString())
+                      .SendAsync("ReceivePrivateFile",
+                                 me, url, file.FileName, ts);
 
-
-            return Ok(new { downloadUrl, fileName = file.FileName, timestamp });
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> DeleteMessage(int id)
-        {
-            var msg = await _db.Messages.FindAsync(id);
-            if (msg == null) return NotFound();
-
-            var userIdStr = HttpContext.Session.GetString("UserId");
-            if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var currentUserId))
-                return Unauthorized();
-
-            if (msg.UserId != currentUserId) return Unauthorized();
-
-            _db.Messages.Remove(msg);
-            await _db.SaveChangesAsync();
             return Ok();
         }
 
+        // ─────────── DELETE / EDIT PRIVATE ───────────
         [HttpPost]
-        public async Task<IActionResult> EditMessage(int id, string newText)
+        public Task<IActionResult> DeleteMessage(int id) =>
+            MutatePrivate(id, (m, me) => _db.Messages.Remove(m), "MessageDeleted");
+
+        [HttpPost]
+        public Task<IActionResult> EditMessage(int id, string newText) =>
+            MutatePrivate(id, (m, me) => m.Text = newText, "MessageEdited", newText);
+
+        private async Task<IActionResult> MutatePrivate(
+            int id,
+            Action<Message, int> action,
+            string hubEvent,
+            params object[] args)
         {
             var msg = await _db.Messages.FindAsync(id);
-            if (msg == null) return NotFound();
-
-            var userIdStr = HttpContext.Session.GetString("UserId");
-            if (string.IsNullOrEmpty(userIdStr) || !int.TryParse(userIdStr, out var currentUserId))
+            if (msg is null) return NotFound();
+            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me)
+                || msg.UserId != me)
                 return Unauthorized();
 
-            if (msg.UserId != currentUserId) return Unauthorized();
 
-            msg.Text = newText;
-            _db.Messages.Update(msg);
+            if (msg.GroupId.HasValue)
+                return BadRequest();
+
+            action(msg, me);
             await _db.SaveChangesAsync();
+
+            var other = msg.UserId == me
+                ? msg.RecipientId
+                : msg.UserId;
+
+            if (args.Length == 1)
+                await _hub.Clients.Groups(me.ToString(), other.ToString())
+                          .SendAsync(hubEvent, id, args[0]);
+            else
+                await _hub.Clients.Groups(me.ToString(), other.ToString())
+                          .SendAsync(hubEvent, id, args);
+
+
             return Ok();
         }
 
+        // ─────────── DOWNLOAD ───────────
         [HttpGet]
         public IActionResult Download(string file, string name)
         {
-            var uploads = Path.Combine(_env.WebRootPath, "uploads");
-            var path = Path.Combine(uploads, file);
-            if (!System.IO.File.Exists(path)) return NotFound();
-            return PhysicalFile(path, "application/octet-stream", name);
+            var path = Path.Combine(_env.WebRootPath, "uploads", file);
+            return System.IO.File.Exists(path)
+                ? PhysicalFile(path, "application/octet-stream", name)
+                : NotFound();
         }
     }
 }

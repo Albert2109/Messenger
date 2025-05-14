@@ -1,4 +1,4 @@
-﻿body, html {
+body, html {
     height: 100%;
     margin: 0;
     background: #e5e5e5;
@@ -95,4 +95,73 @@
 #searchResults {
     max-height: 150px;
     overflow-y: auto;
+}
+/* 100%-height для контейнера */
+.full-height {
+    height: 100%;
+}
+
+/* Прев’ю для зображень і відео */
+.preview-image,
+.preview-video {
+    max-width: 100%;
+    max-height: 300px;
+    display: block;
+}
+
+/* Прев’ю для аудіо */
+.preview-audio {
+    display: block;
+    margin-bottom: 8px;
+}
+
+/* Стиль для кнопки завантаження прев’ю */
+.preview-download {
+    display: block;
+    margin-top: 8px;
+    text-decoration: none;
+    font-size: 0.9rem;
+    color: #007bff;
+}
+
+    .preview-download:hover {
+        text-decoration: underline;
+    }
+.avatar {
+    position: relative;
+}
+
+    .avatar.online::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 10px;
+        height: 10px;
+        background: #4caf50;
+        border: 2px solid #fff;
+        border-radius: 50%;
+    }
+
+    .avatar.offline::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        right: 0;
+        width: 10px;
+        height: 10px;
+        background: #aaa;
+        border: 2px solid #fff;
+        border-radius: 50%;
+    }
+.message-wrapper.justify-content-end .message {
+    margin-right: 0.5rem;
+}
+
+
+.message-wrapper.justify-content-start .message {
+    margin-left: 0.5rem;
+}
+.message-wrapper.justify-content-end:not([data-user-id]) {
+    gap: 0;
 }

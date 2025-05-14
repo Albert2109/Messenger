@@ -1,131 +1,49 @@
-﻿@model Messanger.Models.ViewModels.HomePageViewModel
-@using System.Text.Encodings.Web
-@using System.Text.RegularExpressions
+@model Messanger.Models.ViewModels.HomePageViewModel
 @{
     ViewData["Title"] = "Месенджер";
-    
-    int? currentChatId = Model.SelectedChatId;
 }
-<link rel="stylesheet" href="~/css/MessangerHomeStyle.css" />
+
+
+
 <div class="d-flex" style="height:100%">
-    <div class="d-flex flex-column profile">
-        <div class="text-center mb-4">
-            @if (!string.IsNullOrEmpty(Model.CurrentUserAva))
-            {
-                <img src="@Model.CurrentUserAva" class="avatar mb-2" />
-            }
-            <h5>@Model.CurrentUserLogin</h5>
-            <small class="text-muted">@Model.CurrentUserEmail</small>
-        </div>
-        <h6>Чати</h6>
-        <ul class="list-group chat-list">
-            @foreach (var c in Model.Chats)
-            {
-                var active = c.UserId == currentChatId ? "active" : "";
-                <li class="list-group-item @active p-2">
-                    <a asp-action="Index" asp-route-chatId="@c.UserId" class="d-flex justify-content-between text-decoration-none text-dark">
-                        <span>@c.Login</span>
-                        <small class="text-muted">@c.LastAt.ToLocalTime():HH:mm</small>
-                    </a>
-                </li>
-            }
-        </ul>
-        <input id="userSearch" class="form-control mb-2" placeholder="Пошук за логіном або email" />
-        <ul id="searchResults" class="list-group mb-3"></ul>
-    </div>
-    <div class="d-flex flex-column flex-grow-1 chat-container p-3 bg-light">
-        @if (!currentChatId.HasValue)
-        {
-            <div class="d-flex flex-grow-1 justify-content-center align-items-center">
-                <span class="text-muted">Оберіть чат ліворуч або використайте пошук</span>
-            </div>
-        }
-        else
-        {
-            <div class="mb-3">
-                @{
-                    var partner = Model.Chats.FirstOrDefault(c => c.UserId == currentChatId)?.Login;
-                }
-                <h5>Чат з @partner</h5>
-            </div>
-            <div id="messages" class="messages mb-3">
-                @foreach (var m in Model.Messages)
-                {
-                    <div class="message-wrapper @(m.IsOwn ? "justify-content-end" : "justify-content-start")"
-                         data-message-id="@m.Id" data-has-text="@(m.HasText.ToString().ToLower())">
-                        <img src="@(m.IsOwn ? Model.CurrentUserAva : m.UserAvatar)"
-                             class="avatar @(m.IsOwn ? "ms-2" : "me-2")" />
-                        <div class="message @(m.IsOwn ? "message-right" : "message-left")">
-                            @if (m.HasText)
-                            {
-                                var encoded = HtmlEncoder.Default.Encode(m.Text!);
-                                var linked = Regex.Replace(encoded, @"(https?://[^\s]+)", @"<a href=""$1"" target=""_blank"">$1</a>");
-                                @Html.Raw(linked.Replace("\n", "<br/>"))
-                            }
-                            else if (m.HasFile)
-                            {
-                                var ext = System.IO.Path.GetExtension(m.FileName).ToLower();
-                                @if (new[] { ".jpg", ".png", ".gif" }.Contains(ext))
-                                {
-                                    <img src="@m.FileUrl" style="max-width:100%;max-height:300px" />
-                                }
-                                else if (new[] { ".mp4", ".webm" }.Contains(ext))
-                                {
-                                    <video controls style="max-width:100%;max-height:300px">
-                                        <source src="@m.FileUrl" type="video/@(ext.TrimStart('.'))" />
-                                    </video>
-                                }
-                                else if (new[] { ".mp3", ".wav" }.Contains(ext))
-                                {
-                                    <audio controls>
-                                        <source src="@m.FileUrl" type="audio/@(ext.TrimStart('.'))" />
-                                    </audio>
-                                }
-                                else
-                                {
-                                    <a href="@m.FileUrl" download="@m.FileName">@m.FileName</a>
-                                }
-                                <br />
-                                <a href="@m.FileUrl" download="@m.FileName" class="btn btn-sm btn-outline-primary mt-1">Завантажити</a>
-                            }
-                            <div class="message-time">@m.CreatedAt.ToLocalTime():HH:mm</div>
-                        </div>
-                    </div>
-                }
-            </div>
+    @* ▸ лівий сайдбар (аватар, чати, групи) *@
+    @await Html.PartialAsync("_Sidebar", Model)
 
-            <div class="input-area d-flex align-items-center">
-                <input type="file" id="fileInput" class="form-control me-2" />
-                <button id="sendFileBtn" class="btn btn-secondary me-2">📎</button>
-                <div id="previewContainer" class="me-2"></div>
-
-                <div class="flex-grow-1 d-flex">
-                    <input id="messageInput" class="form-control me-2" placeholder="Написати…" autocomplete="off" />
-                    <button id="sendMessageBtn" type="button" class="btn btn-primary">▶️</button>
-                </div>
-            </div>
-        }
+    @* ▸ основна область (приватний або груповий чат) *@
+    <div class="flex-grow-1 p-3 bg-light d-flex flex-column chat-container">
+        @await Html.PartialAsync("_ChatWindow", Model)
     </div>
 </div>
+
+@* ▸ модалки підтягуємо один раз, унизу *@
+@await Html.PartialAsync("_NewGroupModal")
+@await Html.PartialAsync("_ProfileModal")
+
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@7.0.0/dist/browser/signalr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@7.0.5/dist/browser/signalr.min.js"></script>
+
+
     <script>
         window.chatConfig = {
-            currentUserId: '@Model.CurrentUserId',
+            currentUserId:  @Model.CurrentUserId,
             currentUserLogin: '@Model.CurrentUserLogin',
-            currentUserAva: '@Model.CurrentUserAva',
-            currentChatId: @(currentChatId.HasValue ? currentChatId.Value.ToString() : "null")
+            currentUserAva:  '@Model.CurrentUserAva',
+            currentChatId:   @(Model.SelectedChatId is null ? "null" : Model.SelectedChatId.ToString()),
+            currentGroupId:  @(Model.SelectedGroupId is null ? "null" : Model.SelectedGroupId.ToString()),
+            apiRoutes: {
+                deleteMessage: '@Url.Action("DeleteMessage", "MessangerHome")',
+                editMessage:   '@Url.Action("EditMessage", "MessangerHome")'
+            }
         };
     </script>
-    <script>
-        window.apiRoutes = {
-            deleteMessage: '@Url.Action("DeleteMessage", "MessangerHome")',
-            editMessage: '@Url.Action("EditMessage", "MessangerHome")'
-        };
-    </script>
+
     <script src="~/js/previewer.js"></script>
     <script src="~/js/chat.js"></script>
+    <script src="~/js/profile.js"></script>
+    <script src="~/js/group.js"></script>
     <script src="~/js/MessengerContextMenu.js"></script>
+    <script src="~/js/groupChat.js"></script>
+    <script src="~/js/userSearch.js"></script>
     <script>
         (function() {
             const input = document.getElementById('fileInput');
@@ -138,7 +56,3 @@
         })();
     </script>
 }
-
-   
-    
-

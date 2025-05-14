@@ -1,0 +1,41 @@
+﻿
+<div class="modal fade" id="newGroupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <form id="newGroupForm" class="modal-content" enctype="multipart/form-data">
+            <div class="modal-header">
+                <h5 class="modal-title">Створити групу</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Назва</label>
+                    <input type="text" id="groupName" name="name" class="form-control" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Аватарка (необов’язково)</label>
+                    <input type="file" id="groupAva" name="avatar" class="form-control">
+                </div>
+
+                <hr />
+
+                <label class="form-label">Додати учасників</label>
+                <input type="text" id="userSearchInModal"
+                       class="form-control" placeholder="Пошук по email / логіну">
+
+               
+                <ul id="searchList" class="list-group my-2"></ul>
+
+                
+                <h6 class="mt-3 mb-1">Учасники:</h6>
+                <ul id="chosenList" class="list-group"></ul>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Скасувати</button>
+                <button type="submit" class="btn btn-primary">Створити</button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -1,5 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using Microsoft.AspNetCore.Http; // Додай цей using
+using Microsoft.AspNetCore.Http;
 
 namespace Messanger.Models.ViewModels
 {

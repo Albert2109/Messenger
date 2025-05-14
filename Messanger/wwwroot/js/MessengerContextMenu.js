@@ -1,121 +1,148 @@
 ﻿
 (function () {
-    const { currentUserAva } = window.chatConfig;
-    const origin = window.location.origin;
+    document.addEventListener('DOMContentLoaded', () => {
+        const cfg = window.chatConfig || {};
+        const currentUserId = String(cfg.currentUserId || '');
+        const currentGroupId = cfg.currentGroupId;
+        if (!currentUserId) return;
 
-    
-    function makeLinks(text) {
-        return text.replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>');
-    }
+        const isGroup = currentGroupId != null;
+        const deleteUrlBase = isGroup
+            ? '/Group/DeleteMessage'
+            : '/MessangerHome/DeleteMessage';
+        const editUrlBase = isGroup
+            ? '/Group/EditMessage'
+            : '/MessangerHome/EditMessage';
 
-    
-    const menu = document.createElement('div');
-    menu.id = 'contextMenu';
-    Object.assign(menu.style, {
-        position: 'absolute', display: 'none', zIndex: 10000,
-        background: '#fff', border: '1px solid #ddd', borderRadius: '4px',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
-    });
-    menu.innerHTML = `
-        <ul style="list-style:none;margin:0;padding:0;">
-            <li id="cm-edit" style="padding:8px;cursor:pointer;">✏️ Редагувати</li>
-            <li id="cm-delete" style="padding:8px;cursor:pointer;">🗑️ Видалити</li>
-        </ul>`;
-    document.body.appendChild(menu);
+        const menu = document.createElement('div');
+        menu.id = 'context-menu';
+        Object.assign(menu.style, {
+            position: 'absolute', display: 'none', zIndex: 10000,
+            background: '#fff', border: '1px solid #ddd', borderRadius: '4px',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.15)', padding: '0'
+        });
+        menu.innerHTML = `
+      <ul style="list-style:none;margin:0;padding:0;">
+        <li id="cm-edit"   style="padding:8px;cursor:pointer;">✏️ Редагувати</li>
+        <li id="cm-delete" style="padding:8px;cursor:pointer;">🗑️ Видалити</li>
+      </ul>`;
+        document.body.append(menu);
 
-    let targetWrapper = null;
+        let targetWrapper = null;
 
-   
-    document.body.addEventListener('contextmenu', e => {
-        const wrapper = e.target.closest('.message-wrapper');
-        if (!wrapper) return;
-        e.preventDefault();
-        targetWrapper = wrapper;
-        const canEdit = wrapper.dataset.hasText === 'true' && wrapper.querySelector('img.avatar')?.src.includes(currentUserAva);
-        menu.querySelector('#cm-edit').style.display = canEdit ? 'block' : 'none';
-        menu.style.top = `${e.pageY}px`;
-        menu.style.left = `${e.pageX}px`;
-        menu.style.display = 'block';
-    });
-    document.addEventListener('click', () => menu.style.display = 'none');
-
-    
-    menu.querySelector('#cm-delete').addEventListener('click', async () => {
-        if (!targetWrapper) return;
-        const id = targetWrapper.dataset.messageId;
-        try {
-            const res = await fetch(`${origin}${window.apiRoutes.deleteMessage}?id=${id}`, { method: 'POST' });
-            if (res.ok) targetWrapper.remove();
-            else console.error('Delete failed', await res.text());
-        } catch (err) {
-            console.error('Delete error', err);
+        function showMenu(x, y, canEdit) {
+            menu.style.top = `${y}px`;
+            menu.style.left = `${x}px`;
+            menu.style.display = 'block';
+            const editLi = menu.querySelector('#cm-edit');
+            const deleteLi = menu.querySelector('#cm-delete');
+            if (editLi) editLi.style.display = canEdit ? 'block' : 'none';
+            if (deleteLi) deleteLi.style.display = 'block';
         }
-    });
 
-    
-    menu.querySelector('#cm-edit').addEventListener('click', () => {
-        if (!targetWrapper) return;
+        function hideMenu() {
+            menu.style.display = 'none';
+            targetWrapper = null;
+        }
 
-        const messageDiv = targetWrapper.querySelector('.message');
-        const timeDiv = messageDiv.querySelector('.message-time');
-        const timeText = timeDiv ? timeDiv.innerText : '';
-        if (timeDiv) timeDiv.remove();
+        document.body.addEventListener('contextmenu', e => {
+            const wrapper = e.target.closest('.message-wrapper');
+            if (!wrapper) return;
+            e.preventDefault();
+            targetWrapper = wrapper;
 
-        const oldText = messageDiv.innerText.trim();
+            const msgUserId = wrapper.querySelector('img.avatar')?.dataset.userId;
+            showMenu(e.pageX, e.pageY, msgUserId === currentUserId);
+        });
+
+        document.addEventListener('click', e => { if (!menu.contains(e.target)) hideMenu(); });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') hideMenu(); });
+
+       
+        menu.querySelector('#cm-delete')?.addEventListener('click', async () => {
+            if (!targetWrapper) return hideMenu();
+            const id = targetWrapper.dataset.messageId;
+            hideMenu();
+            try {
+                let url = isGroup
+                    ? `${deleteUrlBase}/${encodeURIComponent(id)}`
+                    : `${deleteUrlBase}?id=${encodeURIComponent(id)}`;
+                const res = await fetch(url, { method: 'POST' });
+                if (!res.ok) throw new Error(await res.text());
+                targetWrapper.remove();
+            } catch (err) {
+                console.error('Delete error:', err);
+            }
+        });
 
         
-        const inputEl = document.createElement('input');
-        inputEl.id = 'inlineEdit';
-        inputEl.className = 'form-control';
-        inputEl.type = 'text';
-        inputEl.value = oldText;
+        menu.querySelector('#cm-edit')?.addEventListener('click', () => {
+            if (!targetWrapper) return hideMenu();
+            const wrapper = targetWrapper;
+            hideMenu();
 
-        const newTimeDiv = document.createElement('div');
-        newTimeDiv.className = 'message-time';
-        newTimeDiv.textContent = timeText;
+            const msgDiv = wrapper.querySelector('.message');
+            if (!msgDiv) return;  
+            const timeEl = msgDiv.querySelector('.message-time');
+            const timeTxt = timeEl?.textContent || '';
+            if (timeEl) timeEl.remove();
 
-        messageDiv.innerHTML = '';
-        messageDiv.appendChild(inputEl);
-        messageDiv.appendChild(newTimeDiv);
+            const original = msgDiv.textContent.trim();
+            msgDiv.innerHTML = '';
 
-        inputEl.focus();
-        inputEl.setSelectionRange(oldText.length, oldText.length);
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-control';
+            input.value = original;
+            msgDiv.appendChild(input);
+            input.focus();
+            input.setSelectionRange(original.length, original.length);
 
-        function onKey(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                save();
-            } else if (e.key === 'Escape') {
-                cancel();
+            function cancelEdit() {
+                msgDiv.textContent = original;
+                msgDiv.insertAdjacentHTML('beforeend', `<div class="message-time">${timeTxt}</div>`);
             }
-        }
 
-        inputEl.addEventListener('keydown', onKey);
-        inputEl.addEventListener('blur', cancel);
+            async function saveEdit() {
+                const newText = input.value.trim();
+                const id = wrapper.dataset.messageId;
+                const url = isGroup
+                    ? `${editUrlBase}/${encodeURIComponent(id)}`
+                    : editUrlBase;            
 
-        async function save() {
-            const newText = inputEl.value.trim();
-            const id = targetWrapper.dataset.messageId;
-            try {
-                const res = await fetch(
-                    `${origin}${window.apiRoutes.editMessage}?id=${id}&newText=${encodeURIComponent(newText)}`,
-                    { method: 'POST' }
-                );
-                if (!res.ok) throw new Error(await res.text());
-            } catch (err) {
-                console.error('Edit save error', err);
+               
+                const params = new URLSearchParams();
+                if (!isGroup) params.append('id', id);
+                params.append('newText', newText);
+
+                console.log('POST', url, params.toString());
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: params.toString()
+                });
+                console.log('Status:', res.status, 'ok:', res.ok);
+                if (!res.ok) {
+                    console.error('Edit error:', await res.text());
+                    cancelEdit();
+                    return;
+                }
+
+                
+                msgDiv.innerHTML =
+                    `${newText}<div class="message-time">${timeTxt}</div>`;
             }
-            finish(newText);
-        }
 
-        function cancel() {
-            finish(oldText);
-        }
-
-        function finish(text) {
-            inputEl.removeEventListener('keydown', onKey);
-            inputEl.removeEventListener('blur', cancel);
-            messageDiv.innerHTML = `${makeLinks(text)}<div class="message-time">${timeText}</div>`;
-        }
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveEdit();
+                } else if (e.key === 'Escape') {
+                    cancelEdit();
+                }
+            });
+            input.addEventListener('blur', cancelEdit);
+        });
     });
+
 })();
