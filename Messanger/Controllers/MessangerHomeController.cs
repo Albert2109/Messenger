@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.Intrinsics.X86;
 using System.Threading.Tasks;
 using Messanger.Models;
+using Messanger.Models.Notifications;
 using Messanger.Models.ViewModels;
 using Messanger.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -131,16 +132,16 @@ namespace Messanger.Controllers
             await _db.SaveChangesAsync();
 
             var timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
-
-            await _notifier.NotifyPrivateMessageAsync(
-                
-                senderId: me,
-                recipientId: chatId,
-                login: login,
-                avatar: ava,
-                text: text,
-                timestamp: timestamp
-            );
+            var dto = new PrivateMessageDto
+            {
+                SenderId = me,
+                RecipientId = chatId,
+                Login = login,
+                Avatar = ava,
+                Text = text,
+                Timestamp = timestamp
+            };
+            await _notifier.NotifyPrivateMessageAsync(dto);
 
             return Ok();
         }
@@ -172,16 +173,18 @@ namespace Messanger.Controllers
             _db.Messages.Add(msg);
             await _db.SaveChangesAsync();
             var timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
-            await _notifier.NotifyPrivateFileAsync(
-               
-                senderId: me,
-                recipientId: chatId,
-                login: login,
-                avatar: ava,
-                fileUrl: url,
-                fileName: file.FileName,
-                timestamp: timestamp
-            );
+            var dto = new PrivateFileDto
+            {
+                SenderId = me,
+                RecipientId = chatId,
+                Login = login,
+                Avatar = ava,
+                FileUrl = url,
+                FileName = file.FileName,
+                Timestamp = timestamp
+            };
+            await _notifier.NotifyPrivateFileAsync(dto);
+
 
             return Ok();
         }
@@ -203,12 +206,13 @@ namespace Messanger.Controllers
 
             _db.Messages.Remove(msg);
             await _db.SaveChangesAsync();
-
-            await _notifier.NotifyPrivateDeletionAsync(
-                messageId: id,
-                currentUserId: me,
-                otherUserId: other!.Value
-            );
+            var dto = new PrivateDeletionDto
+            {
+                MessageId = id,
+                CurrentUserId = me,
+                OtherUserId = other!.Value
+            };
+            await _notifier.NotifyPrivateDeletionAsync(dto);
 
             return Ok();
         }
@@ -229,13 +233,14 @@ namespace Messanger.Controllers
 
             msg.Text = newText;
             await _db.SaveChangesAsync();
-
-            await _notifier.NotifyPrivateEditAsync(
-                messageId: id,
-                newText: newText,
-                currentUserId: me,
-                otherUserId: other!.Value
-            );
+            var dto = new PrivateEditDto
+            {
+                MessageId = id,
+                NewText = newText,
+                CurrentUserId = me,
+                OtherUserId = other!.Value
+            };
+            await _notifier.NotifyPrivateEditAsync(dto);
 
             return Ok();
         }
