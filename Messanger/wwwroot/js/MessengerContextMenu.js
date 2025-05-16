@@ -51,7 +51,7 @@
             e.preventDefault();
             targetWrapper = wrapper;
 
-            const msgUserId = wrapper.querySelector('img.avatar')?.dataset.userId;
+            const msgUserId = wrapper.dataset.userId || wrapper.querySelector('img.avatar')?.dataset.userId;
             showMenu(e.pageX, e.pageY, msgUserId === currentUserId);
         });
 

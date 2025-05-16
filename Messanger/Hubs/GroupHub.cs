@@ -1,50 +1,20 @@
-﻿
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Logging;
+﻿// Hubs/GroupHub.cs
 using Messanger.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace Messanger.Hubs
+public class GroupHub : BaseHub
 {
-    public class GroupHub : ChatHub
-    {
-        private readonly MessengerContext _db;
+    private readonly MessengerContext _db;
+    public GroupHub(MessengerContext db, ILogger<GroupHub> log) : base(log) => _db = db;
 
-        public GroupHub(
-            IWebHostEnvironment env,
-            ILogger<GroupHub> logger,
-            MessengerContext db
-        ) : base(logger)
-        {
-            _db = db;
-        }
-
-        public override async Task OnConnectedAsync()
-        {
-           
-            await base.OnConnectedAsync();
-
-            
-            var http = Context.GetHttpContext();
-            if (http.Request.Query.TryGetValue("userId", out var uidVal)
-                && int.TryParse(uidVal.First(), out var userId))
-            {
-                var groups = _db.GroupMembers
-                    .Where(gm => gm.UserId == userId && !gm.Group.IsDeleted)
+    
+    protected override async Task<IEnumerable<string>> ResolveExtraGroups(int uid)
+        => await _db.GroupMembers
+                    .Where(gm => gm.UserId == uid && !gm.Group.IsDeleted && !gm.IsRemoved)
                     .Select(gm => $"group-{gm.GroupId}")
-                    .ToList();
-
-                foreach (var grp in groups)
-                    await Groups.AddToGroupAsync(Context.ConnectionId, grp);
-            }
-        }
-
-        public override Task OnDisconnectedAsync(System.Exception? exception)
-        {
-           
-            return base.OnDisconnectedAsync(exception);
-        }
-    }
+                    .ToListAsync();
 }
