@@ -115,7 +115,12 @@ dotnet run
 - **KISS (Keep It Simple & Stupid)** — прості й зрозумілі рішення
 
 
-### 🛠️ метоли рефакторингу
+### [🛠️ методи рефакторингу](https://github.com/Albert2109/Messenger/pull/10)
+1.Extract Method
+2.Extract Constant
+3.Rename Variable
+4.Extract Class
+5.Introduce Parameter Object
 
 
 
