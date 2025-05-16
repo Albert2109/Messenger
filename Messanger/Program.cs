@@ -31,6 +31,7 @@ builder.Services.AddScoped<IHandler<RegisterViewModel>, ModelStateHandler>();
 builder.Services.AddScoped<IHandler<RegisterViewModel>, DuplicateEmailHandler>();
 builder.Services.AddScoped<IHandler<RegisterViewModel>, PasswordMatchHandler>();
 builder.Services.AddScoped<IHandler<RegisterViewModel>, AvatarSizeHandler>();
+builder.Services.AddSingleton<IChatNotifier, SignalRChatNotifier>();
 
 var app = builder.Build();
 

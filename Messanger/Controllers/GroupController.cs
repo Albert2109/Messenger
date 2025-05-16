@@ -1,7 +1,8 @@
 ﻿    using Messanger.Hubs;
     using Messanger.Models;
     using Messanger.Models.ViewModels;
-    using Microsoft.AspNetCore.Mvc;
+using Messanger.Services;
+using Microsoft.AspNetCore.Mvc;
     using Microsoft.AspNetCore.SignalR;
     using Microsoft.EntityFrameworkCore;
 using static System.Net.Mime.MediaTypeNames;
@@ -14,14 +15,15 @@ using static System.Net.Mime.MediaTypeNames;
         private readonly MessengerContext _db;
         private readonly IHubContext<GroupHub> _hub;
         private readonly IWebHostEnvironment _env;
-
-        public GroupController(MessengerContext db,
+    private readonly IChatNotifier _notifier;
+    public GroupController(MessengerContext db,
                                IHubContext<GroupHub> hub,
-                               IWebHostEnvironment env)
+                               IWebHostEnvironment env, IChatNotifier notifier)
         {
             _db = db;
             _hub = hub;
             _env = env;
+        _notifier = notifier;
         }
 
         
@@ -316,135 +318,144 @@ using static System.Net.Mime.MediaTypeNames;
 
             return $"/uploads/groups/{unique}";
         }
-        
-        [HttpPost("{groupId:int}/SendMessage")]
-        public async Task<IActionResult> SendMessage(int groupId, string text)
+
+    [HttpPost("{groupId:int}/SendMessage")]
+    public async Task<IActionResult> SendMessage(int groupId, string text)
+    {
+        var me = int.Parse(HttpContext.Session.GetString("UserId")!);
+        var login = HttpContext.Session.GetString("Login")!;
+        var email = HttpContext.Session.GetString("Email")!;
+        var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
+
+        var msg = new Message
         {
-            var me = int.Parse(HttpContext.Session.GetString("UserId")!);
-            var login = HttpContext.Session.GetString("Login")!;
-            var email = HttpContext.Session.GetString("Email")!;
-            var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
+            UserId = me,
+            GroupId = groupId,
+            Text = text,
+            CreatedAt = DateTime.UtcNow
+        };
+        _db.Messages.Add(msg);
+        await _db.SaveChangesAsync();
 
-            
-            var msg = new Message
-            {
-                UserId = me,
-                GroupId = groupId,
-                Text = text,
-                CreatedAt = DateTime.UtcNow
-            };
-            _db.Messages.Add(msg);
-            await _db.SaveChangesAsync();
+        var timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
 
-            var timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
-
-            
-            await _hub.Clients.Group($"group-{groupId}")
-                      .SendAsync("ReceiveGroupMessage",
-                                 msg.Id,    
-                                 me,        
-                                 login,
-                                 email,
-                                 ava,
-                                 text,
-                                 timestamp);
-
-            return Ok();
-        }
        
-        [HttpPost("{groupId:int}/UploadFile")]
-        public async Task<IActionResult> UploadFile(int groupId, IFormFile file)
-        {
-            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me))
-                return Unauthorized();
-            if (file == null || file.Length == 0)
-                return BadRequest();
-
-           
-            var unique = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-            var uploadsRoot = Path.Combine(_env.WebRootPath, "uploads");
-            Directory.CreateDirectory(uploadsRoot);
-            var path = Path.Combine(uploadsRoot, unique);
-            await using var fs = new FileStream(path, FileMode.Create);
-            await file.CopyToAsync(fs);
-
-            
-            var url = Url.Action("Download", "Group", new { groupId, file = unique, name = file.FileName })!;
-
-            
-            var msg = new Message
-            {
-                UserId = me,
-                GroupId = groupId,
-                FileUrl = url,
-                FileName = file.FileName,
-                CreatedAt = DateTime.UtcNow
-            };
-            _db.Messages.Add(msg);
-            await _db.SaveChangesAsync();
-
-            var ts = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
-
-            
-            await _hub.Clients.Group($"group-{groupId}")
-                .SendAsync("ReceiveGroupFile",
-                           msg.Id, me,
-                           HttpContext.Session.GetString("Login")!,
-                           HttpContext.Session.GetString("Email")!,
-                           HttpContext.Session.GetString("Ava")!,
-                           url, file.FileName, ts);
-
-            return Ok();
-        }
-
-      
-        [HttpPost("DeleteMessage/{id:int}")]
-        public Task<IActionResult> DeleteMessage(int id)
-            => MutateGroup(id,
-                  (m, me) => _db.Messages.Remove(m),
-                  "GroupMessageDeleted");
-
-        
-        [HttpPost("EditMessage/{id:int}")]
-        public Task<IActionResult> EditMessage(int id, string newText)
-            => MutateGroup(id,
-                  (m, me) => m.Text = newText,
-                  "GroupMessageEdited", newText);
-
-        
-        private async Task<IActionResult> MutateGroup(
-            int id,
-            Action<Message, int> action,
-            string hubEvent,
-            params object[] args)
-        {
-            var msg = await _db.Messages.FindAsync(id);
-            if (msg is null || !msg.GroupId.HasValue)
-                return NotFound();
-
-            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me)
-                || msg.UserId != me)
-                return Unauthorized();
-
-            action(msg, me);
-            await _db.SaveChangesAsync();
-
-
-        if (args.Length > 0)
-                    {
-            var text = args[0];
-            await _hub.Clients.Group($"group-{msg.GroupId}")
-                            .SendAsync(hubEvent, id, text);
-                   }
-                else
-                    {
-            await _hub.Clients.Group($"group-{msg.GroupId}")
-                           .SendAsync(hubEvent, id);
-                    }
+        await _notifier.NotifyGroupMessageAsync(
+             messageId: msg.Id,
+            groupId: groupId,
+            senderId: me,
+            login: login,
+            email: email,
+            avatar: ava,
+            text: text,
+            timestamp: timestamp
+        );
 
         return Ok();
-        }
-        [HttpGet("{groupId:int}/Download")]
+    }
+
+    [HttpPost("{groupId:int}/UploadFile")]
+    public async Task<IActionResult> UploadFile(int groupId, IFormFile file)
+    {
+        var me = int.Parse(HttpContext.Session.GetString("UserId")!);
+        if (file == null || file.Length == 0)
+            return BadRequest();
+
+        var uploads = Path.Combine(_env.WebRootPath, "uploads", "groups");
+        Directory.CreateDirectory(uploads);
+
+        var unique = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+        var fullPath = Path.Combine(uploads, unique);
+        await using (var fs = new FileStream(fullPath, FileMode.Create))
+            await file.CopyToAsync(fs);
+
+        var url = Url.Action("Download", "Group",
+                             new { groupId, file = unique, name = file.FileName })!;
+
+        var msg = new Message
+        {
+            UserId = me,
+            GroupId = groupId,
+            FileUrl = url,
+            FileName = file.FileName,
+            CreatedAt = DateTime.UtcNow
+        };
+        _db.Messages.Add(msg);
+        await _db.SaveChangesAsync();
+
+        var timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
+        var login = HttpContext.Session.GetString("Login")!;
+        var email = HttpContext.Session.GetString("Email")!;
+        var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
+
+       
+        await _notifier.NotifyGroupFileAsync(
+             messageId: msg.Id,
+            groupId: groupId,
+            senderId: me,
+            login: login,
+            email: email,
+            avatar: ava,
+            fileUrl: url,
+            fileName: file.FileName,
+            timestamp: timestamp
+        );
+
+        return Ok();
+    }
+
+
+    [HttpPost("DeleteMessage/{id:int}")]
+    public async Task<IActionResult> DeleteMessage(int id)
+    {
+        var msg = await _db.Messages.FindAsync(id);
+        if (msg == null || !msg.GroupId.HasValue)
+            return NotFound();
+
+        var me = int.Parse(HttpContext.Session.GetString("UserId")!);
+        if (msg.UserId != me)
+            return Unauthorized();
+
+        _db.Messages.Remove(msg);
+        await _db.SaveChangesAsync();
+
+       
+        await _notifier.NotifyGroupDeletionAsync(
+            groupId: msg.GroupId.Value,
+            messageId: id
+        );
+
+        return Ok();
+    }
+
+
+    [HttpPost("EditMessage/{id:int}")]
+    public async Task<IActionResult> EditMessage(int id, string newText)
+    {
+        var msg = await _db.Messages.FindAsync(id);
+        if (msg == null || !msg.GroupId.HasValue)
+            return NotFound();
+
+        var me = int.Parse(HttpContext.Session.GetString("UserId")!);
+        if (msg.UserId != me)
+            return Unauthorized();
+
+        msg.Text = newText;
+        await _db.SaveChangesAsync();
+
+       
+        await _notifier.NotifyGroupEditAsync(
+            groupId: msg.GroupId.Value,
+            messageId: id,
+            newText: newText
+        );
+
+        return Ok();
+    }
+
+
+
+    [HttpGet("{groupId:int}/Download")]
         public IActionResult Download(int groupId, string file, string name)
         {
             var uploads = Path.Combine(_env.WebRootPath, "uploads");
