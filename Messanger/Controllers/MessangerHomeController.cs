@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.Intrinsics.X86;
 using System.Threading.Tasks;
 using Messanger.Models;
+using Messanger.Models.Notifications;
 using Messanger.Models.ViewModels;
 using Messanger.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -33,8 +34,7 @@ namespace Messanger.Controllers
         [HttpGet]
         public async Task<IActionResult> Index(int? chatId)
         {
-            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me))
-                return RedirectToAction("Avtorization", "Account");
+            var me = GetCurrentUserId();
 
             var vm = new HomePageViewModel
             {
@@ -117,7 +117,7 @@ namespace Messanger.Controllers
         [HttpPost]
         public async Task<IActionResult> SendMessage(int chatId, string text)
         {
-            var me = int.Parse(HttpContext.Session.GetString("UserId")!);
+            var me = GetCurrentUserId();
             var login = HttpContext.Session.GetString("Login")!;
             var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
 
@@ -132,16 +132,16 @@ namespace Messanger.Controllers
             await _db.SaveChangesAsync();
 
             var timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
-
-            await _notifier.NotifyPrivateMessageAsync(
-                
-                senderId: me,
-                recipientId: chatId,
-                login: login,
-                avatar: ava,
-                text: text,
-                timestamp: timestamp
-            );
+            var dto = new PrivateMessageDto
+            {
+                SenderId = me,
+                RecipientId = chatId,
+                Login = login,
+                Avatar = ava,
+                Text = text,
+                Timestamp = timestamp
+            };
+            await _notifier.NotifyPrivateMessageAsync(dto);
 
             return Ok();
         }
@@ -149,8 +149,7 @@ namespace Messanger.Controllers
         [HttpPost]
         public async Task<IActionResult> UploadFile(int chatId, IFormFile file)
         {
-            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me))
-                return Unauthorized();
+            var me = GetCurrentUserId();
             if (file == null || file.Length == 0)
                 return BadRequest();
             var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
@@ -174,16 +173,18 @@ namespace Messanger.Controllers
             _db.Messages.Add(msg);
             await _db.SaveChangesAsync();
             var timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
-            await _notifier.NotifyPrivateFileAsync(
-               
-                senderId: me,
-                recipientId: chatId,
-                login: login,
-                avatar: ava,
-                fileUrl: url,
-                fileName: file.FileName,
-                timestamp: timestamp
-            );
+            var dto = new PrivateFileDto
+            {
+                SenderId = me,
+                RecipientId = chatId,
+                Login = login,
+                Avatar = ava,
+                FileUrl = url,
+                FileName = file.FileName,
+                Timestamp = timestamp
+            };
+            await _notifier.NotifyPrivateFileAsync(dto);
+
 
             return Ok();
         }
@@ -195,9 +196,7 @@ namespace Messanger.Controllers
             var msg = await _db.Messages.FindAsync(id);
             if (msg == null) return NotFound();
 
-            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me)
-                || msg.UserId != me)
-                return Unauthorized();
+            var me = GetCurrentUserId();
             if (msg.GroupId.HasValue)
                 return BadRequest();
 
@@ -207,12 +206,13 @@ namespace Messanger.Controllers
 
             _db.Messages.Remove(msg);
             await _db.SaveChangesAsync();
-
-            await _notifier.NotifyPrivateDeletionAsync(
-                messageId: id,
-                currentUserId: me,
-                otherUserId: other!.Value
-            );
+            var dto = new PrivateDeletionDto
+            {
+                MessageId = id,
+                CurrentUserId = me,
+                OtherUserId = other!.Value
+            };
+            await _notifier.NotifyPrivateDeletionAsync(dto);
 
             return Ok();
         }
@@ -223,9 +223,7 @@ namespace Messanger.Controllers
             var msg = await _db.Messages.FindAsync(id);
             if (msg == null) return NotFound();
 
-            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me)
-                || msg.UserId != me)
-                return Unauthorized();
+            var me = GetCurrentUserId();
             if (msg.GroupId.HasValue)
                 return BadRequest();
 
@@ -235,13 +233,14 @@ namespace Messanger.Controllers
 
             msg.Text = newText;
             await _db.SaveChangesAsync();
-
-            await _notifier.NotifyPrivateEditAsync(
-                messageId: id,
-                newText: newText,
-                currentUserId: me,
-                otherUserId: other!.Value
-            );
+            var dto = new PrivateEditDto
+            {
+                MessageId = id,
+                NewText = newText,
+                CurrentUserId = me,
+                OtherUserId = other!.Value
+            };
+            await _notifier.NotifyPrivateEditAsync(dto);
 
             return Ok();
         }
@@ -253,6 +252,15 @@ namespace Messanger.Controllers
             return System.IO.File.Exists(path)
                 ? PhysicalFile(path, "application/octet-stream", name)
                 : NotFound();
+        }
+        private int GetCurrentUserId()
+        {
+            var idString = HttpContext.Session.GetString("UserId")
+                           ?? throw new InvalidOperationException("UserId is missing in session.");
+            if (!int.TryParse(idString, out var userId))
+                throw new InvalidOperationException($"Invalid UserId value in session: '{idString}'.");
+
+            return userId;
         }
     }
 }

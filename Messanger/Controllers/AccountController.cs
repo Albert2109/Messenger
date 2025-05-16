@@ -22,17 +22,19 @@ namespace Messanger.Controllers
         private readonly ILogger<AccountController> _logger;
         private readonly IHubContext<ProfileHub> _profileHub;
         private readonly IEnumerable<IHandler<RegisterViewModel>> _registerHandlers;
-
+        private readonly IPasswordHasher _hasher;
         public AccountController(
             MessengerContext db,
             ILogger<AccountController> logger,
             IHubContext<ProfileHub> profileHub,
-            IEnumerable<IHandler<RegisterViewModel>> registerHandlers)
+            IEnumerable<IHandler<RegisterViewModel>> registerHandlers,
+             IPasswordHasher _hasher)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _profileHub = profileHub ?? throw new ArgumentNullException(nameof(profileHub));
             _registerHandlers = registerHandlers ?? throw new ArgumentNullException(nameof(registerHandlers));
+            this._hasher = _hasher;
         }
 
        
@@ -85,7 +87,7 @@ namespace Messanger.Controllers
             {
                 Email = model.EmailAddress,
                 Login = model.Login,
-                password = HashPassword(model.Password),
+                password = _hasher.Hash(model.Password),
                 ava = avatarPath
             };
 
@@ -109,7 +111,7 @@ namespace Messanger.Controllers
                 return View(model);
 
             var user = _db.Users.FirstOrDefault(u => u.Email == model.EmailAddress);
-            var hashed = HashPassword(model.Password);
+            var hashed = _hasher.Hash(model.Password);
 
             if (user == null || user.password != hashed)
             {
@@ -201,14 +203,6 @@ namespace Messanger.Controllers
                 .ToListAsync();
 
             return Json(users);
-        }
-
-        private static string HashPassword(string password)
-        {
-            using var sha = SHA256.Create();
-            var bytes = Encoding.UTF8.GetBytes(password);
-            var hashBytes = sha.ComputeHash(bytes);
-            return Convert.ToBase64String(hashBytes);
         }
     }
 }

@@ -1,7 +1,16 @@
 ﻿
+const GROUP_CHAT_CONFIG = {
+    retryDelayMs: 5000,
+    hubPath: '/groupHub',
+    endpoints: {
+        sendMessage: groupId => `/Group/${groupId}/SendMessage`,
+        uploadFile: groupId => `/Group/${groupId}/UploadFile`
+    }
+};
+
 (() => {
     if (!window.chatConfig) {
-        console.warn('chatConfig not defined – groupChat.js aborted');
+        console.warn('chatConfig не знайдений – groupChat.js відмінено');
         return;
     }
 
@@ -9,182 +18,166 @@
         const { currentUserId, currentGroupId } = window.chatConfig;
         if (currentGroupId == null) return;
 
-        const origin = window.location.origin;
-        const hubUrl = `${origin}/groupHub?userId=${currentUserId}`;
-        const sendTextUrl = `${origin}/Group/${currentGroupId}/SendMessage`;
-        const sendFileUrl = `${origin}/Group/${currentGroupId}/UploadFile`;
+        const baseUrl = window.location.origin;
+        const groupHubUrl = `${baseUrl}${GROUP_CHAT_CONFIG.hubPath}?userId=${currentUserId}`;
+        const sendMessageUrl = baseUrl + GROUP_CHAT_CONFIG.endpoints.sendMessage(currentGroupId);
+        const uploadFileUrl = baseUrl + GROUP_CHAT_CONFIG.endpoints.uploadFile(currentGroupId);
 
-        const connection = new signalR.HubConnectionBuilder()
-            .withUrl(hubUrl)
+
+        const groupHubConnection = new signalR.HubConnectionBuilder()
+            .withUrl(groupHubUrl)
             .withAutomaticReconnect()
             .configureLogging(signalR.LogLevel.Information)
             .build();
-
-       
-        connection.on('UserOnline', uid => document
-            .querySelectorAll(`.avatar[data-user-id="${uid}"]`)
-            .forEach(el => el.classList.add('online'))
+        groupHubConnection.on('UserOnline', userId =>
+            document
+                .querySelectorAll(`.avatar[data-user-id="${userId}"]`)
+                .forEach(el => el.classList.add('online'))
         );
-        connection.on('UserOffline', uid => document
-            .querySelectorAll(`.avatar[data-user-id="${uid}"]`)
-            .forEach(el => el.classList.remove('online'))
+        groupHubConnection.on('UserOffline', userId =>
+            document
+                .querySelectorAll(`.avatar[data-user-id="${userId}"]`)
+                .forEach(el => el.classList.remove('online'))
         );
 
-        connection.onreconnected(id => console.log('✅ GroupHub reconnected', id));
-        connection.onreconnecting(err => console.warn('🔄 GroupHub reconnecting', err));
-        connection.onclose(err => console.error('❌ GroupHub closed', err));
 
-        
-        (async function start() {
+        groupHubConnection.onreconnected(connId =>
+            console.log('✅ GroupHub reconnection, id:', connId)
+        );
+        groupHubConnection.onreconnecting(err =>
+            console.warn('🔄 GroupHub reconnecting:', err)
+        );
+        groupHubConnection.onclose(err =>
+            console.error('❌ GroupHub closed:', err)
+        );
+
+
+        (async function startConnection() {
             try {
-                await connection.start();
-                console.log('🚀 Connected to GroupHub:', hubUrl);
-            } catch (e) {
-                console.error('🚨 Connection failed, retry in 5s', e);
-                setTimeout(start, 5000);
+                await groupHubConnection.start();
+                console.log('🚀 Connected to GroupHub:', groupHubUrl);
+            } catch (err) {
+                console.error(`🚨 Помилка з’єднання, повтор через ${GROUP_CHAT_CONFIG.retryDelayMs} ms`, err);
+                setTimeout(startConnection, GROUP_CHAT_CONFIG.retryDelayMs);
             }
         })();
 
-      
-        function makeLinks(raw) {
-            const text = raw == null ? '' : String(raw);
-            return text.replace(
+   
+        function linkify(text) {
+            return (text || '').replace(
                 /(https?:\/\/[^\s]+)/g,
                 '<a href="$1" target="_blank">$1</a>'
             );
         }
 
-       
-        function appendGroupMessage({ id, userId, avatar, text, timestamp }) {
+     
+        function renderGroupMessage({ id, userId, avatarUrl, content, time }) {
             if (document.querySelector(`[data-message-id="${id}"]`)) return;
-            const container = document.getElementById('messages');
-
-            const wrap = document.createElement('div');
-            wrap.className = 'message-wrapper ' +
+            const list = document.getElementById('messages');
+            const wrapper = document.createElement('div');
+            wrapper.className = 'message-wrapper ' +
                 (userId == currentUserId ? 'justify-content-end' : 'justify-content-start');
-            wrap.dataset.messageId = id;
-            wrap.dataset.userId = userId;
+            wrapper.dataset.messageId = id;
+            wrapper.dataset.userId = userId;
 
-            const img = document.createElement('img');
-            img.src = avatar;
-            img.className = 'avatar ' + (userId == currentUserId ? 'ms-2' : 'me-2');
-            img.dataset.userId = userId;
-            wrap.appendChild(img);
-
-            const bubble = document.createElement('div');
-            bubble.className = 'message ' +
-                (userId == currentUserId ? 'message-right' : 'message-left');
-            bubble.innerHTML = makeLinks(text);
-            wrap.appendChild(bubble);
-
-            const timeEl = document.createElement('div');
-            timeEl.className = 'message-time';
-            timeEl.textContent = timestamp;
-            bubble.appendChild(timeEl);
-
-            container.appendChild(wrap);
-            container.scrollTop = container.scrollHeight;
+            wrapper.innerHTML = `
+        <img src="${avatarUrl}" 
+             class="avatar ${userId == currentUserId ? 'ms-2' : 'me-2'}" 
+             data-user-id="${userId}" />
+        <div class="message ${userId == currentUserId ? 'message-right' : 'message-left'}">
+          ${linkify(content)}
+          <div class="message-time">${time}</div>
+        </div>
+      `;
+            list.appendChild(wrapper);
+            list.scrollTop = list.scrollHeight;
         }
 
-       
-        function appendGroupFile({ id, userId, avatar, url, fileName, timestamp }) {
+     
+        function renderGroupFile({ id, userId, avatarUrl, fileUrl, fileName, time }) {
             if (document.querySelector(`[data-message-id="${id}"]`)) return;
-            const container = document.getElementById('messages');
-
-            const wrap = document.createElement('div');
-            wrap.className = 'message-wrapper ' +
+            const list = document.getElementById('messages');
+            const wrapper = document.createElement('div');
+            wrapper.className = 'message-wrapper ' +
                 (userId == currentUserId ? 'justify-content-end' : 'justify-content-start');
-            wrap.dataset.messageId = id;
-            wrap.dataset.userId = userId;
+            wrapper.dataset.messageId = id;
+            wrapper.dataset.userId = userId;
 
-            const img = document.createElement('img');
-            img.src = avatar;
-            img.className = 'avatar ' + (userId == currentUserId ? 'ms-2' : 'me-2');
-            img.dataset.userId = userId;
-            wrap.appendChild(img);
+            wrapper.innerHTML = `
+        <img src="${avatarUrl}"
+             class="avatar ${userId == currentUserId ? 'ms-2' : 'me-2'}"
+             data-user-id="${userId}" />
+        <div class="message ${userId == currentUserId ? 'message-right' : 'message-left'}">
+          <div class="file-preview mb-2"></div>
+          <div class="message-time">${time}</div>
+        </div>
+      `;
+            const previewContainer = wrapper.querySelector('.file-preview');
+            window.preview(fileUrl, previewContainer);
 
-            const bubble = document.createElement('div');
-            bubble.className = 'message ' +
-                (userId == currentUserId ? 'message-right' : 'message-left');
-            wrap.appendChild(bubble);
+     
+            if (!previewContainer.querySelector('img, video, audio')) {
+                const link = document.createElement('a');
+                link.href = fileUrl;
+                link.download = fileName;
+                link.textContent = fileName;
+                link.className = 'preview-download btn btn-sm btn-outline-primary mt-1';
+                previewContainer.appendChild(link);
+            }
 
-         
-            const preview = document.createElement('div');
-            preview.className = 'file-preview mb-2';
-            bubble.appendChild(preview);
-
-            
-            const timeEl = document.createElement('div');
-            timeEl.className = 'message-time';
-            timeEl.textContent = timestamp;
-            bubble.appendChild(timeEl);
-
-          
-            window.preview(url, preview);
-
-            
-            const dl = document.createElement('a');
-            dl.href = url;
-            dl.download = fileName;
-            dl.textContent = fileName;
-            dl.className = 'preview-download btn btn-sm btn-outline-primary mt-1';
-            preview.appendChild(dl);
-
-            container.appendChild(wrap);
-            container.scrollTop = container.scrollHeight;
+            list.appendChild(wrapper);
+            list.scrollTop = list.scrollHeight;
         }
 
-       
-        connection.on('ReceiveGroupMessage', (id, userId, login, email, avatar, text, timestamp) => {
-            appendGroupMessage({ id, userId, avatar, text, timestamp });
+      
+        groupHubConnection.on('ReceiveGroupMessage', (id, userId, login, email, avatar, text, timestamp) => {
+            renderGroupMessage({ id, userId, avatarUrl: avatar, content: text, time: timestamp });
         });
-        connection.on('ReceiveGroupFile', (id, userId, login, email, avatar, url, fileName, timestamp) => {
-            appendGroupFile({ id, userId, avatar, url, fileName, timestamp });
+        groupHubConnection.on('ReceiveGroupFile', (id, userId, login, email, avatar, url, fileName, timestamp) => {
+            renderGroupFile({ id, userId, avatarUrl: avatar, fileUrl: url, fileName, time: timestamp });
         });
-        connection.on('GroupMessageDeleted', messageId => {
+        groupHubConnection.on('GroupMessageDeleted', messageId => {
             const el = document.querySelector(`[data-message-id="${messageId}"]`);
             if (el) el.remove();
         });
-        connection.on('GroupMessageEdited', (messageId, newText) => {
-            const wrap = document.querySelector(`[data-message-id="${messageId}"]`);
-            if (!wrap) return;
-            const bubble = wrap.querySelector('.message');
-            const time = bubble.querySelector('.message-time')?.textContent || '';
-            bubble.innerHTML = makeLinks(newText);
-            const timeEl = document.createElement('div');
-            timeEl.className = 'message-time';
-            timeEl.textContent = time;
-            bubble.appendChild(timeEl);
+        groupHubConnection.on('GroupMessageEdited', (messageId, newText) => {
+            const wrapper = document.querySelector(`[data-message-id="${messageId}"]`);
+            if (!wrapper) return;
+            const bubble = wrapper.querySelector('.message');
+            const timeText = bubble.querySelector('.message-time')?.textContent || '';
+            bubble.innerHTML = linkify(newText) + `<div class="message-time">${timeText}</div>`;
         });
 
-       
-        document.getElementById('sendMessageBtn').addEventListener('click', async e => {
+      
+        const sendBtn = document.getElementById('sendMessageBtn');
+        const messageInput = document.getElementById('messageInput');
+        sendBtn.addEventListener('click', async e => {
             e.preventDefault();
-            const input = document.getElementById('messageInput');
-            const text = input.value.trim();
+            const text = messageInput.value.trim();
             if (!text) return;
             try {
-                await fetch(sendTextUrl, {
+                await fetch(sendMessageUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: new URLSearchParams({ text })
                 });
-                input.value = '';
+                messageInput.value = '';
             } catch (err) {
                 console.error('❌ SendGroupMessage error', err);
             }
         });
 
-    
-        document.getElementById('sendFileBtn').addEventListener('click', async e => {
+      
+        const uploadBtn = document.getElementById('sendFileBtn');
+        const fileInput = document.getElementById('fileInput');
+        uploadBtn.addEventListener('click', async e => {
             e.preventDefault();
-            const fi = document.getElementById('fileInput');
-            if (!fi.files.length) return;
-            const form = new FormData();
-            form.append('file', fi.files[0]);
+            if (!fileInput.files.length) return;
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
             try {
-                await fetch(sendFileUrl, { method: 'POST', body: form });
-                fi.value = '';
+                await fetch(uploadFileUrl, { method: 'POST', body: formData });
+                fileInput.value = '';
             } catch (err) {
                 console.error('❌ UploadGroupFile error', err);
             }
