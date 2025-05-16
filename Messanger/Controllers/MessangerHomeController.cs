@@ -1,9 +1,13 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.SignalR;
-using Messanger.Hubs;
+using System;
+using System.IO;
+using System.Linq;
+using System.Runtime.Intrinsics.X86;
+using System.Threading.Tasks;
 using Messanger.Models;
 using Messanger.Models.ViewModels;
+using Messanger.Services;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Messanger.Controllers
 {
@@ -12,21 +16,19 @@ namespace Messanger.Controllers
         private readonly MessengerContext _db;
         private readonly ILogger<MessangerHomeController> _log;
         private readonly IWebHostEnvironment _env;
-        private readonly IHubContext<ChatHub> _hub;
+        private readonly IChatNotifier _notifier;
 
         public MessangerHomeController(
             MessengerContext db,
             ILogger<MessangerHomeController> log,
             IWebHostEnvironment env,
-            IHubContext<ChatHub> hub)
+            IChatNotifier notifier)
         {
-            _db = db;
-            _log = log;
-            _env = env;
-            _hub = hub;
+            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _log = log ?? throw new ArgumentNullException(nameof(log));
+            _env = env ?? throw new ArgumentNullException(nameof(env));
+            _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
         }
-
-        
 
         [HttpGet]
         public async Task<IActionResult> Index(int? chatId)
@@ -43,7 +45,6 @@ namespace Messanger.Controllers
                 SelectedChatId = chatId,
                 SelectedGroupId = null
             };
-
 
             vm.Chats = await _db.Users
                 .Where(u => _db.Messages.Any(m =>
@@ -69,30 +70,22 @@ namespace Messanger.Controllers
                 .OrderByDescending(c => c.LastAt)
                 .ToListAsync();
 
-
             vm.Groups = await _db.GroupMembers
                 .Where(gm => gm.UserId == me && !gm.IsRemoved && !gm.Group.IsDeleted)
-                .Select(gm => new {
-                    gm.GroupId,
-                    gm.Group.Name,
+                .Select(gm => new GroupViewModel
+                {
+                    GroupId = gm.GroupId,
+                    Name = gm.Group.Name,
                     Avatar = gm.Group.AvatarUrl ?? "/images/default-group.png",
                     LastAt = _db.Messages
-                                .Where(ms => ms.GroupId == gm.GroupId)
-                                .OrderByDescending(ms => ms.CreatedAt)
-                                .Select(ms => (DateTime?)ms.CreatedAt)
-                                .FirstOrDefault()
-                             ?? gm.Group.CreatedAt
+                                  .Where(ms => ms.GroupId == gm.GroupId)
+                                  .OrderByDescending(ms => ms.CreatedAt)
+                                  .Select(ms => (DateTime?)ms.CreatedAt)
+                                  .FirstOrDefault()
+                               ?? gm.Group.CreatedAt
                 })
                 .OrderByDescending(x => x.LastAt)
-                .Select(x => new GroupViewModel
-                {
-                    GroupId = x.GroupId,
-                    Name = x.Name,
-                    Avatar = x.Avatar,
-                    LastAt = x.LastAt
-                })
                 .ToListAsync();
-
 
             if (chatId.HasValue)
             {
@@ -121,14 +114,11 @@ namespace Messanger.Controllers
             return View(vm);
         }
 
-
-        
         [HttpPost]
         public async Task<IActionResult> SendMessage(int chatId, string text)
         {
             var me = int.Parse(HttpContext.Session.GetString("UserId")!);
             var login = HttpContext.Session.GetString("Login")!;
-            var email = HttpContext.Session.GetString("Email")!;
             var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
 
             var msg = new Message
@@ -143,106 +133,119 @@ namespace Messanger.Controllers
 
             var timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
 
-
-            await _hub.Clients.Groups(me.ToString(), chatId.ToString())
-          
-           .SendAsync("ReceivePrivateMessage",
-                      me,                      
-                      login,
-                      ava,
-                      text,
-                      timestamp);
+            await _notifier.NotifyPrivateMessageAsync(
+                
+                senderId: me,
+                recipientId: chatId,
+                login: login,
+                avatar: ava,
+                text: text,
+                timestamp: timestamp
+            );
 
             return Ok();
         }
 
-
-        
         [HttpPost]
-        public async Task<IActionResult> UploadFile(
-            [FromForm] int chatId,
-            IFormFile file)
+        public async Task<IActionResult> UploadFile(int chatId, IFormFile file)
         {
             if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me))
                 return Unauthorized();
             if (file == null || file.Length == 0)
                 return BadRequest();
-
-            var unique = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+            var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
+            var login = HttpContext.Session.GetString("Login")!;
             var uploads = Path.Combine(_env.WebRootPath, "uploads");
             Directory.CreateDirectory(uploads);
-            var path = Path.Combine(uploads, unique);
-            await using var fs = new FileStream(path, FileMode.Create);
+            var unique = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+            var fullPath = Path.Combine(uploads, unique);
+            await using var fs = new FileStream(fullPath, FileMode.Create);
             await file.CopyToAsync(fs);
-
             var url = Url.Action("Download", "MessangerHome",
                                  new { file = unique, name = file.FileName })!;
-
             var msg = new Message
             {
                 UserId = me,
                 RecipientId = chatId,
-                GroupId = null,
                 FileUrl = url,
                 FileName = file.FileName,
                 CreatedAt = DateTime.UtcNow
             };
             _db.Messages.Add(msg);
             await _db.SaveChangesAsync();
-
-            var ts = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
-
-            await _hub.Clients.Groups(me.ToString(), chatId.ToString())
-                      .SendAsync("ReceivePrivateFile",
-                                 me, url, file.FileName, ts);
+            var timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
+            await _notifier.NotifyPrivateFileAsync(
+               
+                senderId: me,
+                recipientId: chatId,
+                login: login,
+                avatar: ava,
+                fileUrl: url,
+                fileName: file.FileName,
+                timestamp: timestamp
+            );
 
             return Ok();
         }
 
-       
-        [HttpPost]
-        public Task<IActionResult> DeleteMessage(int id) =>
-            MutatePrivate(id, (m, me) => _db.Messages.Remove(m), "MessageDeleted");
 
         [HttpPost]
-        public Task<IActionResult> EditMessage(int id, string newText) =>
-            MutatePrivate(id, (m, me) => m.Text = newText, "MessageEdited", newText);
-
-        private async Task<IActionResult> MutatePrivate(
-            int id,
-            Action<Message, int> action,
-            string hubEvent,
-            params object[] args)
+        public async Task<IActionResult> DeleteMessage(int id)
         {
             var msg = await _db.Messages.FindAsync(id);
-            if (msg is null) return NotFound();
+            if (msg == null) return NotFound();
+
             if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me)
                 || msg.UserId != me)
                 return Unauthorized();
-
-
             if (msg.GroupId.HasValue)
                 return BadRequest();
-
-            action(msg, me);
-            await _db.SaveChangesAsync();
 
             var other = msg.UserId == me
                 ? msg.RecipientId
                 : msg.UserId;
 
-            if (args.Length == 1)
-                await _hub.Clients.Groups(me.ToString(), other.ToString())
-                          .SendAsync(hubEvent, id, args[0]);
-            else
-                await _hub.Clients.Groups(me.ToString(), other.ToString())
-                          .SendAsync(hubEvent, id, args);
+            _db.Messages.Remove(msg);
+            await _db.SaveChangesAsync();
 
+            await _notifier.NotifyPrivateDeletionAsync(
+                messageId: id,
+                currentUserId: me,
+                otherUserId: other!.Value
+            );
 
             return Ok();
         }
 
-        
+        [HttpPost]
+        public async Task<IActionResult> EditMessage(int id, string newText)
+        {
+            var msg = await _db.Messages.FindAsync(id);
+            if (msg == null) return NotFound();
+
+            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me)
+                || msg.UserId != me)
+                return Unauthorized();
+            if (msg.GroupId.HasValue)
+                return BadRequest();
+
+            var other = msg.UserId == me
+                ? msg.RecipientId
+                : msg.UserId;
+
+            msg.Text = newText;
+            await _db.SaveChangesAsync();
+
+            await _notifier.NotifyPrivateEditAsync(
+                messageId: id,
+                newText: newText,
+                currentUserId: me,
+                otherUserId: other!.Value
+            );
+
+            return Ok();
+        }
+
         [HttpGet]
         public IActionResult Download(string file, string name)
         {
