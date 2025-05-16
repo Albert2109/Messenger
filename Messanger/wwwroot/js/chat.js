@@ -1,5 +1,12 @@
 
-
+const CHAT_CONFIG = {
+    retryDelay: 5000, 
+    hubPath: '/chatHub',
+    endpoints: {
+        sendMessage: '/MessangerHome/SendMessage',
+        uploadFile: '/MessangerHome/UploadFile'
+    }
+};
 (() => {
     if (!window.chatConfig) {
         console.warn('chatConfig not defined – chat.js aborted');
@@ -48,7 +55,7 @@
                 console.log('SignalR connected');
             } catch (e) {
                 console.error('Connection error, retry in 5s', e);
-                setTimeout(start, 5000);
+                setTimeout(start, CHAT_CONFIG.retryDelay);
             }
         })();
 
@@ -210,7 +217,7 @@
             const text = input.value.trim();
             if (!text) return;
             try {
-                await fetch(`${origin}/MessangerHome/SendMessage`, {
+                await fetch(CHAT_CONFIG.endpoints.sendMessage, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: new URLSearchParams({ chatId: currentChatId, text })
@@ -228,7 +235,7 @@
             form.append('chatId', currentChatId);
             form.append('file', fileInput.files[0]);
             try {
-                await fetch(`${origin}/MessangerHome/UploadFile`, { method: 'POST', body: form });
+                await fetch(CHAT_CONFIG.endpoints.uploadFile, { method: 'POST', body: form });
                 fileInput.value = '';
             } catch (err) {
                 console.error('UploadFile error', err);
