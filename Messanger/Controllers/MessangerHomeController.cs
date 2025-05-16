@@ -33,8 +33,7 @@ namespace Messanger.Controllers
         [HttpGet]
         public async Task<IActionResult> Index(int? chatId)
         {
-            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me))
-                return RedirectToAction("Avtorization", "Account");
+            var me = GetCurrentUserId();
 
             var vm = new HomePageViewModel
             {
@@ -117,7 +116,7 @@ namespace Messanger.Controllers
         [HttpPost]
         public async Task<IActionResult> SendMessage(int chatId, string text)
         {
-            var me = int.Parse(HttpContext.Session.GetString("UserId")!);
+            var me = GetCurrentUserId();
             var login = HttpContext.Session.GetString("Login")!;
             var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
 
@@ -149,8 +148,7 @@ namespace Messanger.Controllers
         [HttpPost]
         public async Task<IActionResult> UploadFile(int chatId, IFormFile file)
         {
-            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me))
-                return Unauthorized();
+            var me = GetCurrentUserId();
             if (file == null || file.Length == 0)
                 return BadRequest();
             var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
@@ -195,9 +193,7 @@ namespace Messanger.Controllers
             var msg = await _db.Messages.FindAsync(id);
             if (msg == null) return NotFound();
 
-            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me)
-                || msg.UserId != me)
-                return Unauthorized();
+            var me = GetCurrentUserId();
             if (msg.GroupId.HasValue)
                 return BadRequest();
 
@@ -223,9 +219,7 @@ namespace Messanger.Controllers
             var msg = await _db.Messages.FindAsync(id);
             if (msg == null) return NotFound();
 
-            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var me)
-                || msg.UserId != me)
-                return Unauthorized();
+            var me = GetCurrentUserId();
             if (msg.GroupId.HasValue)
                 return BadRequest();
 
@@ -253,6 +247,15 @@ namespace Messanger.Controllers
             return System.IO.File.Exists(path)
                 ? PhysicalFile(path, "application/octet-stream", name)
                 : NotFound();
+        }
+        private int GetCurrentUserId()
+        {
+            var idString = HttpContext.Session.GetString("UserId")
+                           ?? throw new InvalidOperationException("UserId is missing in session.");
+            if (!int.TryParse(idString, out var userId))
+                throw new InvalidOperationException($"Invalid UserId value in session: '{idString}'.");
+
+            return userId;
         }
     }
 }

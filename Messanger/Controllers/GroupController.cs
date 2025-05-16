@@ -31,8 +31,8 @@ using static System.Net.Mime.MediaTypeNames;
         public async Task<IActionResult> Create(string name, IFormFile? avatar,
                                             [FromForm] int[] memberIds)
         {
-            var ownerId = int.Parse(HttpContext.Session.GetString("UserId")!);
-            var avatarUrl = avatar is null ? null : await SaveFile(avatar);
+            var ownerId = GetCurrentUserId();
+        var avatarUrl = avatar is null ? null : await SaveFile(avatar);
 
             var g = new Group { Name = name, AvatarUrl = avatarUrl, OwnerId = ownerId };
             _db.Groups.Add(g);
@@ -69,7 +69,7 @@ using static System.Net.Mime.MediaTypeNames;
         [HttpPost("{groupId:int}/AddMember")]
         public async Task<IActionResult> AddMember(int groupId, int userId)
         {
-            var currentId = int.Parse(HttpContext.Session.GetString("UserId")!);
+            var currentId = GetCurrentUserId();
 
             var me = await _db.GroupMembers
                      .FirstOrDefaultAsync(gm => gm.GroupId == groupId && gm.UserId == currentId && !gm.IsRemoved);
@@ -91,9 +91,9 @@ using static System.Net.Mime.MediaTypeNames;
         [HttpPost("{groupId:int}/RemoveMember")]
         public async Task<IActionResult> RemoveMember(int groupId, int userId)
         {
-            var currentId = int.Parse(HttpContext.Session.GetString("UserId")!);
+            var currentId = GetCurrentUserId();
 
-            var me = await _db.GroupMembers.FirstOrDefaultAsync(g =>
+        var me = await _db.GroupMembers.FirstOrDefaultAsync(g =>
                            g.GroupId == groupId && g.UserId == currentId && !g.IsRemoved);
             var victim = await _db.GroupMembers.FirstOrDefaultAsync(g =>
                            g.GroupId == groupId && g.UserId == userId && !g.IsRemoved);
@@ -115,9 +115,9 @@ using static System.Net.Mime.MediaTypeNames;
         [HttpPost("{groupId:int}/Rename")]
         public async Task<IActionResult> Rename(int groupId, string name)
         {
-            var currentId = int.Parse(HttpContext.Session.GetString("UserId")!);
+            var currentId = GetCurrentUserId();
 
-            var gm = await _db.GroupMembers.FirstOrDefaultAsync(m =>
+        var gm = await _db.GroupMembers.FirstOrDefaultAsync(m =>
                      m.GroupId == groupId && m.UserId == currentId && !m.IsRemoved);
 
             if (gm is null || gm.Role > GroupRole.Admin) return Forbid();
@@ -137,9 +137,9 @@ using static System.Net.Mime.MediaTypeNames;
         [HttpPost("{groupId:int}/Avatar")]
         public async Task<IActionResult> ChangeAvatar(int groupId, IFormFile file)
         {
-            var currentId = int.Parse(HttpContext.Session.GetString("UserId")!);
+            var currentId = GetCurrentUserId();
 
-            var gm = await _db.GroupMembers.FirstOrDefaultAsync(m =>
+        var gm = await _db.GroupMembers.FirstOrDefaultAsync(m =>
                      m.GroupId == groupId && m.UserId == currentId && !m.IsRemoved);
             if (gm is null || gm.Role > GroupRole.Admin) return Forbid();
 
@@ -158,9 +158,9 @@ using static System.Net.Mime.MediaTypeNames;
         [HttpPost("{groupId:int}/TransferOwner")]
         public async Task<IActionResult> TransferOwner(int groupId, int newOwnerId)
         {
-            var currentId = int.Parse(HttpContext.Session.GetString("UserId")!);
+            var currentId = GetCurrentUserId();
 
-            var owner = await _db.GroupMembers.FirstOrDefaultAsync(m =>
+        var owner = await _db.GroupMembers.FirstOrDefaultAsync(m =>
                          m.GroupId == groupId && m.UserId == currentId && m.Role == GroupRole.Owner);
             var target = await _db.GroupMembers.FirstOrDefaultAsync(m =>
                          m.GroupId == groupId && m.UserId == newOwnerId && !m.IsRemoved);
@@ -183,9 +183,9 @@ using static System.Net.Mime.MediaTypeNames;
         [HttpPost("{groupId:int}/Leave")]
         public async Task<IActionResult> Leave(int groupId)
         {
-            var currentId = int.Parse(HttpContext.Session.GetString("UserId")!);
+            var currentId = GetCurrentUserId();
 
-            var gm = await _db.GroupMembers.FirstOrDefaultAsync(m =>
+        var gm = await _db.GroupMembers.FirstOrDefaultAsync(m =>
                      m.GroupId == groupId && m.UserId == currentId && !m.IsRemoved);
             if (gm is null) return NotFound();
             if (gm.Role == GroupRole.Owner)
@@ -204,9 +204,9 @@ using static System.Net.Mime.MediaTypeNames;
         [HttpPost("{groupId:int}/Delete")]
         public async Task<IActionResult> Delete(int groupId)
         {
-            var currentId = int.Parse(HttpContext.Session.GetString("UserId")!);
+            var currentId = GetCurrentUserId();
 
-            var g = await _db.Groups.FindAsync(groupId);
+        var g = await _db.Groups.FindAsync(groupId);
             if (g is null) return NotFound();
             if (g.OwnerId != currentId) return Forbid();
 
@@ -220,8 +220,8 @@ using static System.Net.Mime.MediaTypeNames;
         [HttpGet("Chat/{groupId:int}")]
         public async Task<IActionResult> Chat(int groupId)
         {
-            if (!int.TryParse(HttpContext.Session.GetString("UserId"), out var userId))
-                return RedirectToAction("Avtorization", "Account");
+        var userId = GetCurrentUserId();
+          
 
             var vm = new HomePageViewModel
             {
@@ -322,7 +322,7 @@ using static System.Net.Mime.MediaTypeNames;
     [HttpPost("{groupId:int}/SendMessage")]
     public async Task<IActionResult> SendMessage(int groupId, string text)
     {
-        var me = int.Parse(HttpContext.Session.GetString("UserId")!);
+        var me = GetCurrentUserId();
         var login = HttpContext.Session.GetString("Login")!;
         var email = HttpContext.Session.GetString("Email")!;
         var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
@@ -357,7 +357,7 @@ using static System.Net.Mime.MediaTypeNames;
     [HttpPost("{groupId:int}/UploadFile")]
     public async Task<IActionResult> UploadFile(int groupId, IFormFile file)
     {
-        var me = int.Parse(HttpContext.Session.GetString("UserId")!);
+        var me = GetCurrentUserId();
         if (file == null || file.Length == 0)
             return BadRequest();
 
@@ -412,9 +412,7 @@ using static System.Net.Mime.MediaTypeNames;
         if (msg == null || !msg.GroupId.HasValue)
             return NotFound();
 
-        var me = int.Parse(HttpContext.Session.GetString("UserId")!);
-        if (msg.UserId != me)
-            return Unauthorized();
+        var me = GetCurrentUserId();
 
         _db.Messages.Remove(msg);
         await _db.SaveChangesAsync();
@@ -436,9 +434,8 @@ using static System.Net.Mime.MediaTypeNames;
         if (msg == null || !msg.GroupId.HasValue)
             return NotFound();
 
-        var me = int.Parse(HttpContext.Session.GetString("UserId")!);
-        if (msg.UserId != me)
-            return Unauthorized();
+        var me = GetCurrentUserId();
+        
 
         msg.Text = newText;
         await _db.SaveChangesAsync();
@@ -480,5 +477,14 @@ using static System.Net.Mime.MediaTypeNames;
             .ToListAsync();
 
         return Json(members);
+    }
+    private int GetCurrentUserId()
+    {
+        var idString = HttpContext.Session.GetString("UserId")
+                       ?? throw new InvalidOperationException("UserId is missing in session.");
+        if (!int.TryParse(idString, out var userId))
+            throw new InvalidOperationException($"Invalid UserId value in session: '{idString}'.");
+
+        return userId;
     }
 }
