@@ -1,7 +1,7 @@
-﻿
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR;
 using Messanger.Hubs;
+using Messanger.Models.Notifications;
 
 namespace Messanger.Services
 {
@@ -18,132 +18,70 @@ namespace Messanger.Services
             _groupHub = groupHub;
         }
 
-        public Task NotifyPrivateMessageAsync(
-            
-            int senderId,
-            int recipientId,
-            string login,
-            string avatar,
-            string text,
-            string timestamp)
-        {
-            return _chatHub.Clients
-                .Groups(senderId.ToString(), recipientId.ToString())
+        public Task NotifyPrivateMessageAsync(PrivateMessageDto dto)
+            => _chatHub.Clients
+                .Groups(dto.SenderId.ToString(), dto.RecipientId.ToString())
                 .SendAsync("ReceivePrivateMessage",
-                          
-                           senderId,
-                           login,
-                           avatar,
-                           text,
-                           timestamp);
-        }
+                           dto.SenderId,
+                           dto.Login,
+                           dto.Avatar,
+                           dto.Text,
+                           dto.Timestamp);
 
-        public Task NotifyGroupMessageAsync(
-            int messageId,
-            int groupId,
-            int senderId,
-            string login,
-            string email,
-            string avatar,
-            string text,
-            string timestamp)
-        {
-            return _groupHub.Clients
-                .Group($"group-{groupId}")
+        public Task NotifyGroupMessageAsync(GroupMessageDto dto)
+            => _groupHub.Clients
+                .Group($"group-{dto.GroupId}")
                 .SendAsync("ReceiveGroupMessage",
-                           messageId,
-                           senderId,
-                           login,
-                           email,
-                           avatar,
-                           text,
-                           timestamp);
-        }
+                           dto.MessageId,
+                           dto.SenderId,
+                           dto.Login,
+                           dto.Email,
+                           dto.Avatar,
+                           dto.Text,
+                           dto.Timestamp);
 
-        public Task NotifyPrivateFileAsync(
-           
-            int senderId,
-            int recipientId,
-            string login,
-            string avatar,
-            string fileUrl,
-            string fileName,
-            string timestamp)
-        {
-            return _chatHub.Clients
-                .Groups(senderId.ToString(), recipientId.ToString())
+        public Task NotifyPrivateFileAsync(PrivateFileDto dto)
+            => _chatHub.Clients
+                .Groups(dto.SenderId.ToString(), dto.RecipientId.ToString())
                 .SendAsync("ReceivePrivateFile",
-                           
-                           senderId,
-                           login,
-                           avatar,
-                           fileUrl,
-                           fileName,
-                           timestamp);
-        }
+                           dto.SenderId,
+                           dto.Login,
+                           dto.Avatar,
+                           dto.FileUrl,
+                           dto.FileName,
+                           dto.Timestamp);
 
-        public Task NotifyGroupFileAsync(
-            int messageId,
-            int groupId,
-            int senderId,
-            string login,
-            string email,
-            string avatar,
-            string fileUrl,
-            string fileName,
-            string timestamp)
-        {
-            return _groupHub.Clients
-                .Group($"group-{groupId}")
+        public Task NotifyGroupFileAsync(GroupFileDto dto)
+            => _groupHub.Clients
+                .Group($"group-{dto.GroupId}")
                 .SendAsync("ReceiveGroupFile",
-                           messageId,
-                           senderId,
-                           login,
-                           email,
-                           avatar,
-                           fileUrl,
-                           fileName,
-                           timestamp);
-        }
+                           dto.MessageId,
+                           dto.SenderId,
+                           dto.Login,
+                           dto.Email,
+                           dto.Avatar,
+                           dto.FileUrl,
+                           dto.FileName,
+                           dto.Timestamp);
 
-        public Task NotifyPrivateDeletionAsync(
-            int messageId,
-            int currentUserId,
-            int otherUserId)
-        {
-            return _chatHub.Clients
-                .Groups(currentUserId.ToString(), otherUserId.ToString())
-                .SendAsync("MessageDeleted", messageId);
-        }
+        public Task NotifyPrivateDeletionAsync(PrivateDeletionDto dto)
+            => _chatHub.Clients
+                .Groups(dto.CurrentUserId.ToString(), dto.OtherUserId.ToString())
+                .SendAsync("MessageDeleted", dto.MessageId);
 
-        public Task NotifyPrivateEditAsync(
-            int messageId,
-            string newText,
-            int currentUserId,
-            int otherUserId)
-        {
-            return _chatHub.Clients
-                .Groups(currentUserId.ToString(), otherUserId.ToString())
-                .SendAsync("MessageEdited", messageId, newText);
-        }
+        public Task NotifyPrivateEditAsync(PrivateEditDto dto)
+            => _chatHub.Clients
+                .Groups(dto.CurrentUserId.ToString(), dto.OtherUserId.ToString())
+                .SendAsync("MessageEdited", dto.MessageId, dto.NewText);
 
-        public Task NotifyGroupDeletionAsync(
-            int groupId,
-            int messageId)
-        {
-            return _groupHub.Clients
-                .Group($"group-{groupId}")
-                .SendAsync("GroupMessageDeleted", messageId);
-        }
+        public Task NotifyGroupDeletionAsync(GroupDeletionDto dto)
+            => _groupHub.Clients
+                .Group($"group-{dto.GroupId}")
+                .SendAsync("GroupMessageDeleted", dto.MessageId);
 
-        public Task NotifyGroupEditAsync(
-            int groupId,
-            int messageId,
-            string newText)
-        {
-            return _groupHub.Clients
-                .Group($"group-{groupId}")
-                .SendAsync("GroupMessageEdited", messageId, newText);
-        }
+        public Task NotifyGroupEditAsync(GroupEditDto dto)
+            => _groupHub.Clients
+                .Group($"group-{dto.GroupId}")
+                .SendAsync("GroupMessageEdited", dto.MessageId, dto.NewText);
     }
 }
