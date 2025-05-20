@@ -1,28 +1,35 @@
 ﻿
-<div class="modal fade" id="profileModal" tabindex="-1">
+<div class="modal fade" id="profileModal" tabindex="-1" aria-labelledby="profileModalLabel" aria-hidden="true">
     <div class="modal-dialog">
-        <form id="profileForm" class="modal-content" enctype="multipart/form-data">
+        <form id="profileForm"
+              asp-controller="Account"
+              asp-action="UpdateProfile"
+              method="post"
+              enctype="multipart/form-data"
+              class="modal-content">
+          
+            @Html.AntiForgeryToken()
+
             <div class="modal-header">
-                <h5 class="modal-title">Профіль користувача</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h5 class="modal-title" id="profileModalLabel">Профіль користувача</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
             <div class="modal-body">
                 <input type="hidden" name="UserId" id="profileUserId" />
 
                 <div class="text-center mb-3">
-                    <img id="profileAvaPreview" src=""
-                         class="avatar mb-2" style="width:100px;height:100px" />
-                    <input type="file" name="AvaFile" class="form-control mt-2" />
+                    <img id="profileAvaPreview" src="/images/default-avatar.png" class="avatar mb-2 rounded-circle" style="width:100px;height:100px" />
+                    <input type="file" name="AvaFile" class="form-control mt-2" accept="image/*" />
                 </div>
 
                 <div class="mb-3">
-                    <label>Логін</label>
+                    <label class="form-label" for="profileLogin">Логін</label>
                     <input type="text" name="Login" id="profileLogin" class="form-control" required />
                 </div>
 
                 <div class="mb-3">
-                    <label>Email</label>
+                    <label class="form-label" for="profileEmail">Email</label>
                     <input type="email" name="Email" id="profileEmail" class="form-control" required />
                 </div>
             </div>

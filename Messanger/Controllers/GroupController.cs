@@ -361,54 +361,46 @@ public class GroupController : Controller
     public async Task<IActionResult> UploadFile(int groupId, IFormFile file)
     {
         var me = GetCurrentUserId();
-        if (file == null || file.Length == 0)
-            return BadRequest();
+        if (file == null || file.Length == 0) return BadRequest();
 
-        var uploads = Path.Combine(_env.WebRootPath, "uploads", "groups");
-        Directory.CreateDirectory(uploads);
+        
+        var dir = Path.Combine(_env.WebRootPath, "uploads", "groups");
+        Directory.CreateDirectory(dir);
 
         var unique = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-        var fullPath = Path.Combine(uploads, unique);
-        await using (var fs = new FileStream(fullPath, FileMode.Create))
-            await file.CopyToAsync(fs);
+        var fullPath = Path.Combine(dir, unique);
+        await using var fs = new FileStream(fullPath, FileMode.Create);
+        await file.CopyToAsync(fs);
 
-        var url = Url.Action("Download", "Group",
-                             new { groupId, file = unique, name = file.FileName })!;
-
+        
+        var relativeUrl = $"/uploads/groups/{unique}";   
         var msg = new Message
         {
             UserId = me,
             GroupId = groupId,
-            FileUrl = url,
+            FileUrl = relativeUrl,          
             FileName = file.FileName,
             CreatedAt = DateTime.UtcNow
         };
         _db.Messages.Add(msg);
         await _db.SaveChangesAsync();
-
-        var timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
-        var login = HttpContext.Session.GetString("Login")!;
-        var email = HttpContext.Session.GetString("Email")!;
-        var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
-
-
         var dto = new GroupFileDto
         {
             MessageId = msg.Id,
             GroupId = groupId,
             SenderId = me,
-            Login = login,
-            Email = email,
-            Avatar = ava,
-            FileUrl = url,
+            Login = HttpContext.Session.GetString("Login")!,
+            Email = HttpContext.Session.GetString("Email")!,
+            Avatar = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png",
+            FileUrl = relativeUrl,         
             FileName = file.FileName,
-            Timestamp = timestamp
+            Timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm")
         };
-
         await _notifier.NotifyGroupFileAsync(dto);
 
         return Ok();
     }
+
 
 
     [HttpPost("DeleteMessage/{id:int}")]
