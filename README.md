@@ -124,7 +124,30 @@ dotnet run
 ####  5.Introduce Parameter Object
 
 
+### Кількість рядків коду
 
+
+![Кількість коду](https://github.com/Albert2109/Messenger/blob/main/images/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202025-05-20%20111255.png)
+
+
+
+
+
+
+
+
+### Функціонал
+![Головна сторінка](https://github.com/Albert2109/Messenger/blob/main/images/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202025-05-20%20102146.png)
+![Реєстрація](https://github.com/Albert2109/Messenger/blob/main/images/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202025-05-20%20102158.png)
+![Авторизація](https://github.com/Albert2109/Messenger/blob/main/images/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202025-05-20%20102209.png)
+![Чат 1 на 1](https://github.com/Albert2109/Messenger/blob/main/images/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202025-05-20%20103507.png)
+![Контекст меню для повідомлень](https://github.com/Albert2109/Messenger/blob/main/images/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202025-05-20%20103519.png)
+![Форма для створення групи](https://github.com/Albert2109/Messenger/blob/main/images/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202025-05-20%20103606.png)
+![Груповий чат](https://github.com/Albert2109/Messenger/blob/main/images/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202025-05-20%20105524.png)
+![Управління групою](https://github.com/Albert2109/Messenger/blob/main/images/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202025-05-20%20105723.png)
+![Контекст меню групи для звичайного користувача](https://github.com/Albert2109/Messenger/blob/main/images/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202025-05-20%20105736.png)
+![Контекст меню для адміна групи](https://github.com/Albert2109/Messenger/blob/main/images/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202025-05-20%20105747.png)
+![Пошук співрозмовника](https://github.com/Albert2109/Messenger/blob/main/images/%D0%A1%D0%BD%D0%B8%D0%BC%D0%BE%D0%BA%20%D1%8D%D0%BA%D1%80%D0%B0%D0%BD%D0%B0%202025-05-20%20105800.png)
 
 
 
