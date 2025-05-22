@@ -33,6 +33,7 @@ builder.Services.AddScoped<IHandler<RegisterViewModel>, PasswordMatchHandler>();
 builder.Services.AddScoped<IHandler<RegisterViewModel>, AvatarSizeHandler>();
 builder.Services.AddSingleton<IChatNotifier, SignalRChatNotifier>();
 builder.Services.AddSingleton<IPasswordHasher, Sha256PasswordHasher>();
+builder.Services.AddScoped<IFileService, FileService>();
 var app = builder.Build();
 
 app.UseHttpsRedirection();
