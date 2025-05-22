@@ -1,12 +1,10 @@
-﻿using Messanger.Hubs;
-using Messanger.Models;
+﻿using Messanger.Models;
 using Messanger.Models.Notifications;
 using Messanger.Models.ViewModels;
 using Messanger.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace Messanger.Controllers;
 
@@ -15,53 +13,44 @@ public class GroupController : Controller
 {
     private readonly MessengerContext _db;
     private readonly IHubContext<GroupHub> _hub;
-    private readonly IWebHostEnvironment _env;
     private readonly IChatNotifier _notifier;
-    public GroupController(MessengerContext db,
-                               IHubContext<GroupHub> hub,
-                               IWebHostEnvironment env, IChatNotifier notifier)
+    private readonly IFileService _fileService;
+
+    public GroupController(MessengerContext db, IHubContext<GroupHub> hub, IChatNotifier notifier, 
+        IFileService fileService)
     {
         _db = db;
         _hub = hub;
-        _env = env;
         _notifier = notifier;
+        _fileService = fileService;
     }
 
 
     [HttpPost("Create")]
-    public async Task<IActionResult> Create(string name, IFormFile? avatar,
-                                        [FromForm] int[] memberIds)
+    public async Task<IActionResult> Create(string name, IFormFile? avatar, [FromForm] int[] memberIds)
     {
         var ownerId = GetCurrentUserId();
-        var avatarUrl = avatar is null ? null : await SaveFile(avatar);
+        var avatarUrl = avatar is null ? null : await _fileService.SaveAsync(avatar, "groups");
 
         var g = new Group { Name = name, AvatarUrl = avatarUrl, OwnerId = ownerId };
         _db.Groups.Add(g);
         await _db.SaveChangesAsync();
 
-
-        var ids = memberIds.Append(ownerId).Distinct().ToArray();
-
+        var ids = memberIds.Append(ownerId).Distinct();
         foreach (var uid in ids)
+        {
             _db.GroupMembers.Add(new GroupMember
             {
                 GroupId = g.GroupId,
                 UserId = uid,
                 Role = uid == ownerId ? GroupRole.Owner : GroupRole.Member
             });
+        }
         await _db.SaveChangesAsync();
 
-
-
         await _hub.Groups.AddToGroupAsync(ownerId.ToString(), $"group-{g.GroupId}");
-
-
-
-        await _hub.Clients.Groups(ids.Select(i => i.ToString()))
-                 .SendAsync("GroupCreated", g.GroupId, g.Name, g.AvatarUrl);
-
-        await _hub.Clients.Group($"group-{g.GroupId}")
-                 .SendAsync("GroupMemberAdded", g.GroupId, ownerId);
+        await _hub.Clients.Groups(ids.Select(i => i.ToString())).SendAsync("GroupCreated", g.GroupId, g.Name, g.AvatarUrl);
+        await _hub.Clients.Group($"group-{g.GroupId}").SendAsync("GroupMemberAdded", g.GroupId, ownerId);
 
         return Ok(new { g.GroupId });
     }
@@ -139,19 +128,17 @@ public class GroupController : Controller
     public async Task<IActionResult> ChangeAvatar(int groupId, IFormFile file)
     {
         var currentId = GetCurrentUserId();
-
-        var gm = await _db.GroupMembers.FirstOrDefaultAsync(m =>
-                     m.GroupId == groupId && m.UserId == currentId && !m.IsRemoved);
+        var gm = await _db.GroupMembers.FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == currentId && !m.IsRemoved);
         if (gm is null || gm.Role > GroupRole.Admin) return Forbid();
 
         var g = await _db.Groups.FindAsync(groupId);
         if (g is null) return NotFound();
 
-        g.AvatarUrl = await SaveFile(file);
+        g.AvatarUrl = await _fileService.SaveAsync(file, "groups");
         await _db.SaveChangesAsync();
 
-        await _hub.Clients.Group($"group-{groupId}")
-                 .SendAsync("GroupAvatarChanged", groupId, g.AvatarUrl);
+        await _hub.Clients.Group($"group-{groupId}").SendAsync("GroupAvatarChanged", groupId, g.AvatarUrl);
+
         return Ok();
     }
 
@@ -305,21 +292,6 @@ public class GroupController : Controller
         return View("Chat", vm);
     }
 
-
-    private async Task<string> SaveFile(IFormFile f)
-    {
-        var uploads = Path.Combine(_env.WebRootPath, "uploads", "groups");
-        Directory.CreateDirectory(uploads);
-
-        var unique = $"{Guid.NewGuid()}{Path.GetExtension(f.FileName)}";
-        var path = Path.Combine(uploads, unique);
-
-        await using var fs = new FileStream(path, FileMode.Create);
-        await f.CopyToAsync(fs);
-
-        return $"/uploads/groups/{unique}";
-    }
-
     [HttpPost("{groupId:int}/SendMessage")]
     public async Task<IActionResult> SendMessage(int groupId, string text)
     {
@@ -360,30 +332,23 @@ public class GroupController : Controller
     [HttpPost("{groupId:int}/UploadFile")]
     public async Task<IActionResult> UploadFile(int groupId, IFormFile file)
     {
+        if (file == null || file.Length == 0)
+            return BadRequest();
+
         var me = GetCurrentUserId();
-        if (file == null || file.Length == 0) return BadRequest();
+        var relativeUrl = await _fileService.SaveAsync(file, "groups");
 
-        
-        var dir = Path.Combine(_env.WebRootPath, "uploads", "groups");
-        Directory.CreateDirectory(dir);
-
-        var unique = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-        var fullPath = Path.Combine(dir, unique);
-        await using var fs = new FileStream(fullPath, FileMode.Create);
-        await file.CopyToAsync(fs);
-
-        
-        var relativeUrl = $"/uploads/groups/{unique}";   
         var msg = new Message
         {
             UserId = me,
             GroupId = groupId,
-            FileUrl = relativeUrl,          
+            FileUrl = relativeUrl,
             FileName = file.FileName,
             CreatedAt = DateTime.UtcNow
         };
         _db.Messages.Add(msg);
         await _db.SaveChangesAsync();
+
         var dto = new GroupFileDto
         {
             MessageId = msg.Id,
@@ -392,7 +357,7 @@ public class GroupController : Controller
             Login = HttpContext.Session.GetString("Login")!,
             Email = HttpContext.Session.GetString("Email")!,
             Avatar = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png",
-            FileUrl = relativeUrl,         
+            FileUrl = relativeUrl,
             FileName = file.FileName,
             Timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm")
         };
@@ -400,8 +365,6 @@ public class GroupController : Controller
 
         return Ok();
     }
-
-
 
     [HttpPost("DeleteMessage/{id:int}")]
     public async Task<IActionResult> DeleteMessage(int id)
@@ -455,14 +418,8 @@ public class GroupController : Controller
 
 
     [HttpGet("{groupId:int}/Download")]
-    public IActionResult Download(int groupId, string file, string name)
-    {
-        var uploads = Path.Combine(_env.WebRootPath, "uploads");
-        var path = Path.Combine(uploads, file);
-        if (!System.IO.File.Exists(path))
-            return NotFound();
-        return PhysicalFile(path, "application/octet-stream", name);
-    }
+    public IActionResult Download(int groupId, string file, string name) => _fileService.Serve($"/uploads/{file}", name);
+
     [HttpGet("{groupId:int}/Members")]
     public async Task<IActionResult> Members(int groupId)
     {

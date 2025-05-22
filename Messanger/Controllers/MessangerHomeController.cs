@@ -1,8 +1,3 @@
-using System;
-using System.IO;
-using System.Linq;
-using System.Runtime.Intrinsics.X86;
-using System.Threading.Tasks;
 using Messanger.Models;
 using Messanger.Models.Notifications;
 using Messanger.Models.ViewModels;
@@ -15,20 +10,15 @@ namespace Messanger.Controllers
     public class MessangerHomeController : Controller
     {
         private readonly MessengerContext _db;
-        private readonly ILogger<MessangerHomeController> _log;
-        private readonly IWebHostEnvironment _env;
         private readonly IChatNotifier _notifier;
+        private readonly IFileService _fileService;
 
-        public MessangerHomeController(
-            MessengerContext db,
-            ILogger<MessangerHomeController> log,
-            IWebHostEnvironment env,
-            IChatNotifier notifier)
+
+        public MessangerHomeController(MessengerContext db, IChatNotifier notifier, IFileService fileService)
         {
             _db = db ?? throw new ArgumentNullException(nameof(db));
-            _log = log ?? throw new ArgumentNullException(nameof(log));
-            _env = env ?? throw new ArgumentNullException(nameof(env));
             _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
+            _fileService = fileService;
         }
 
         [HttpGet]
@@ -149,42 +139,38 @@ namespace Messanger.Controllers
         [HttpPost]
         public async Task<IActionResult> UploadFile(int chatId, IFormFile file)
         {
-            var me = GetCurrentUserId();
             if (file == null || file.Length == 0)
                 return BadRequest();
-            var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
+
+            var me = GetCurrentUserId();
             var login = HttpContext.Session.GetString("Login")!;
-            var uploads = Path.Combine(_env.WebRootPath, "uploads");
-            Directory.CreateDirectory(uploads);
-            var unique = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-            var fullPath = Path.Combine(uploads, unique);
-            await using var fs = new FileStream(fullPath, FileMode.Create);
-            await file.CopyToAsync(fs);
-            var url = Url.Action("Download", "MessangerHome",
-                                 new { file = unique, name = file.FileName })!;
+            var ava = HttpContext.Session.GetString("Ava") ?? "/images/default-avatar.png";
+
+            var relativeUrl = await _fileService.SaveAsync(file);
+            var downloadName = file.FileName;
+
             var msg = new Message
             {
                 UserId = me,
                 RecipientId = chatId,
-                FileUrl = url,
-                FileName = file.FileName,
+                FileUrl = relativeUrl,
+                FileName = downloadName,
                 CreatedAt = DateTime.UtcNow
             };
             _db.Messages.Add(msg);
             await _db.SaveChangesAsync();
-            var timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm");
+
             var dto = new PrivateFileDto
             {
                 SenderId = me,
                 RecipientId = chatId,
                 Login = login,
                 Avatar = ava,
-                FileUrl = url,
-                FileName = file.FileName,
-                Timestamp = timestamp
+                FileUrl = relativeUrl,
+                FileName = downloadName,
+                Timestamp = msg.CreatedAt.ToLocalTime().ToString("HH:mm")
             };
             await _notifier.NotifyPrivateFileAsync(dto);
-
 
             return Ok();
         }
@@ -246,13 +232,8 @@ namespace Messanger.Controllers
         }
 
         [HttpGet]
-        public IActionResult Download(string file, string name)
-        {
-            var path = Path.Combine(_env.WebRootPath, "uploads", file);
-            return System.IO.File.Exists(path)
-                ? PhysicalFile(path, "application/octet-stream", name)
-                : NotFound();
-        }
+        public IActionResult Download(string file, string name) => _fileService.Serve($"/uploads/{file}", name);
+
         private int GetCurrentUserId()
         {
             var idString = HttpContext.Session.GetString("UserId")
