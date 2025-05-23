@@ -36,32 +36,48 @@ namespace Messanger.Controllers
                 SelectedGroupId = null
             };
 
-            vm.Chats = await _db.Users
+            vm.Chats = await LoadPrivateChats(me);
+            vm.Groups = await LoadGroups(me);
+
+            if (chatId.HasValue)
+            {
+                vm.Messages = await LoadPrivateMessages(me, chatId.Value);
+            }
+
+            return View(vm);
+        }
+
+        private async Task<List<ChatViewModel>> LoadPrivateChats(int currentUserId)
+        {
+            return await _db.Users
                 .Where(u => _db.Messages.Any(m =>
-                    (m.UserId == me && m.RecipientId == u.UserId) ||
-                    (m.UserId == u.UserId && m.RecipientId == me)))
+                    (m.UserId == currentUserId && m.RecipientId == u.UserId) ||
+                    (m.UserId == u.UserId && m.RecipientId == currentUserId)))
                 .Select(u => new ChatViewModel
                 {
                     UserId = u.UserId,
                     Login = u.Login,
                     LastMessage = _db.Messages
                         .Where(m =>
-                            (m.UserId == me && m.RecipientId == u.UserId) ||
-                            (m.UserId == u.UserId && m.RecipientId == me))
+                            (m.UserId == currentUserId && m.RecipientId == u.UserId) ||
+                            (m.UserId == u.UserId && m.RecipientId == currentUserId))
                         .OrderByDescending(m => m.CreatedAt)
                         .Select(m => m.Text)
                         .FirstOrDefault(),
                     LastAt = _db.Messages
                         .Where(m =>
-                            (m.UserId == me && m.RecipientId == u.UserId) ||
-                            (m.UserId == u.UserId && m.RecipientId == me))
+                            (m.UserId == currentUserId && m.RecipientId == u.UserId) ||
+                            (m.UserId == u.UserId && m.RecipientId == currentUserId))
                         .Max(m => m.CreatedAt)
                 })
                 .OrderByDescending(c => c.LastAt)
                 .ToListAsync();
+        }
 
-            vm.Groups = await _db.GroupMembers
-                .Where(gm => gm.UserId == me && !gm.IsRemoved && !gm.Group.IsDeleted)
+        private async Task<List<GroupViewModel>> LoadGroups(int currentUserId)
+        {
+            return await _db.GroupMembers
+                .Where(gm => gm.UserId == currentUserId && !gm.IsRemoved && !gm.Group.IsDeleted)
                 .Select(gm => new GroupViewModel
                 {
                     GroupId = gm.GroupId,
@@ -76,32 +92,30 @@ namespace Messanger.Controllers
                 })
                 .OrderByDescending(x => x.LastAt)
                 .ToListAsync();
+        }
 
-            if (chatId.HasValue)
-            {
-                vm.Messages = await _db.Messages
-                    .Where(m =>
-                        m.GroupId == null &&
-                        ((m.UserId == me && m.RecipientId == chatId) ||
-                         (m.UserId == chatId && m.RecipientId == me)))
-                    .Include(m => m.User)
-                    .OrderBy(m => m.CreatedAt)
-                    .Select(m => new ChatMessageViewModel
-                    {
-                        Id = m.Id,
-                        UserId = m.UserId,
-                        UserLogin = m.User.Login,
-                        UserAvatar = m.User.ava ?? "/images/default-avatar.png",
-                        Text = m.Text,
-                        FileUrl = m.FileUrl,
-                        FileName = m.FileName,
-                        CreatedAt = m.CreatedAt,
-                        IsOwn = m.UserId == me
-                    })
-                    .ToListAsync();
-            }
-
-            return View(vm);
+        private async Task<List<ChatMessageViewModel>> LoadPrivateMessages(int currentUserId, int otherUserId)
+        {
+            return await _db.Messages
+                .Where(m =>
+                    m.GroupId == null &&
+                    ((m.UserId == currentUserId && m.RecipientId == otherUserId) ||
+                     (m.UserId == otherUserId && m.RecipientId == currentUserId)))
+                .Include(m => m.User)
+                .OrderBy(m => m.CreatedAt)
+                .Select(m => new ChatMessageViewModel
+                {
+                    Id = m.Id,
+                    UserId = m.UserId,
+                    UserLogin = m.User.Login,
+                    UserAvatar = m.User.ava ?? "/images/default-avatar.png",
+                    Text = m.Text,
+                    FileUrl = m.FileUrl,
+                    FileName = m.FileName,
+                    CreatedAt = m.CreatedAt,
+                    IsOwn = m.UserId == currentUserId
+                })
+                .ToListAsync();
         }
 
         [HttpPost]
