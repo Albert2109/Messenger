@@ -26,33 +26,68 @@ public class GroupController : Controller
     }
 
 
-    [HttpPost("Create")]
-    public async Task<IActionResult> Create(string name, IFormFile? avatar, [FromForm] int[] memberIds)
+    private void ValidateGroupCreation(string name, int[] memberIds)
     {
-        var ownerId = GetCurrentUserId();
-        var avatarUrl = avatar is null ? null : await _fileService.SaveAsync(avatar, "groups");
+        if (string.IsNullOrEmpty(name))
+            throw new ArgumentException("Group name cannot be empty.");
+        
+        if (memberIds == null || memberIds.Length == 0)
+            throw new ArgumentException("At least one member is required.");
+    }
 
-        var g = new Group { Name = name, AvatarUrl = avatarUrl, OwnerId = ownerId };
-        _db.Groups.Add(g);
+    private async Task<Group> SaveGroupToDatabase(string name, string? avatarUrl, int ownerId, int[] memberIds)
+    {
+        var group = new Group { Name = name, AvatarUrl = avatarUrl, OwnerId = ownerId };
+        _db.Groups.Add(group);
         await _db.SaveChangesAsync();
 
-        var ids = memberIds.Append(ownerId).Distinct();
-        foreach (var uid in ids)
+        var uniqueMemberIds = memberIds.Append(ownerId).Distinct();
+        foreach (var userId in uniqueMemberIds)
         {
             _db.GroupMembers.Add(new GroupMember
             {
-                GroupId = g.GroupId,
-                UserId = uid,
-                Role = uid == ownerId ? GroupRole.Owner : GroupRole.Member
+                GroupId = group.GroupId,
+                UserId = userId,
+                Role = userId == ownerId ? GroupRole.Owner : GroupRole.Member
             });
         }
         await _db.SaveChangesAsync();
 
-        await _hub.Groups.AddToGroupAsync(ownerId.ToString(), $"group-{g.GroupId}");
-        await _hub.Clients.Groups(ids.Select(i => i.ToString())).SendAsync("GroupCreated", g.GroupId, g.Name, g.AvatarUrl);
-        await _hub.Clients.Group($"group-{g.GroupId}").SendAsync("GroupMemberAdded", g.GroupId, ownerId);
+        return group;
+    }
 
-        return Ok(new { g.GroupId });
+    private async Task NotifyGroupCreation(Group group, IEnumerable<int> memberIds)
+    {
+        await _hub.Groups.AddToGroupAsync(group.OwnerId.ToString(), $"group-{group.GroupId}");
+        await _hub.Clients.Groups(memberIds.Select(id => id.ToString()))
+            .SendAsync("GroupCreated", group.GroupId, group.Name, group.AvatarUrl);
+        await _hub.Clients.Group($"group-{group.GroupId}")
+            .SendAsync("GroupMemberAdded", group.GroupId, group.OwnerId);
+    }
+
+
+   [HttpPost("Create")]
+    public async Task<IActionResult> Create(string name, IFormFile? avatar, [FromForm] int[] memberIds)
+    {
+        try
+        {
+            ValidateGroupCreation(name, memberIds);
+            var ownerId = GetCurrentUserId();
+            var avatarUrl = avatar is null ? null : await _fileService.SaveAsync(avatar, "groups");
+
+            var group = await SaveGroupToDatabase(name, avatarUrl, ownerId, memberIds);
+            await NotifyGroupCreation(group, memberIds.Append(ownerId).Distinct());
+
+            return Ok(new { group.GroupId });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, "An error occurred while creating the group.");
+        }
     }
 
 
